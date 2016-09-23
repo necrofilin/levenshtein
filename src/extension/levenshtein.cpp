@@ -1,5 +1,5 @@
+#include <zend_types.h>
 #include "levenshtein.h"
-#include <exception>
 
 const char DEBUG = 0;
 
@@ -45,10 +45,15 @@ void Levenshtein::setPattern(HashTable *pattern, char flush_if_changed) {
     char keep = 1;
     char *pat_el;
     int pat_len;
+#if ZEND_MODULE_API_NO < 20151012
     for (i = 0, zend_hash_internal_pointer_reset(pattern);
-         zend_hash_get_current_data(pattern, (void **) &data) == SUCCESS;
-         ++i, zend_hash_move_forward(pattern)
-            ) {
+         zend_hash_get_current_data(pattern, (void **) &data) == SUCCESS; ++i, zend_hash_move_forward(pattern)) {
+#else
+    for (i = 0, zend_hash_internal_pointer_reset(pattern); zend_hash_has_more_elements(
+            pattern); ++i, zend_hash_move_forward(pattern)) {
+        *data = zend_hash_get_current_data(pattern);
+#endif
+
         pat_el = Z_STRVAL_P(*data);
         pat_len = Z_STRLEN_P(*data);
 
@@ -57,7 +62,9 @@ void Levenshtein::setPattern(HashTable *pattern, char flush_if_changed) {
             keep = 0;
         }
     }
+
     this->pattern_len = i;
+
     this->m = i;
     if (!keep && flush_if_changed)
         this->flushProcessed();
@@ -73,8 +80,14 @@ void Levenshtein::setString(char *str) {
 
 zval *Levenshtein::getString() {
     zval *zvt;
+#if ZEND_MODULE_API_NO < 20151012
     MAKE_STD_ZVAL(zvt);
+#endif
+#if ZEND_MODULE_API_NO < 20151012
     ZVAL_STRING(zvt, this->string.c_str(), 1);
+#else
+    ZVAL_STRING(zvt, this->string.c_str());
+#endif
     return zvt;
 }
 
@@ -83,17 +96,28 @@ zval *Levenshtein::getPattern() {
     int i;
 
     zval *zv, *zvt;
+
+#if ZEND_MODULE_API_NO < 20151012
     MAKE_STD_ZVAL(zv);
     zv->type = IS_ARRAY;
+#else
+    zv->u1.v.type = IS_ARRAY;
+#endif
     HashTable *zv_ht;
     ALLOC_HASHTABLE(zv_ht);
     zend_hash_init(zv_ht, 0, NULL, NULL, 0);
     Z_ARRVAL_P(zv) = zv_ht;
 
     for (i = 0; i < this->pattern_len; ++i) {
+
+#if ZEND_MODULE_API_NO < 20151012
         MAKE_STD_ZVAL(zvt);
         ZVAL_STRING(zvt, this->pattern[i].c_str(), 1);
         zend_hash_index_update(zv_ht, i, &zvt, sizeof(zval *), NULL);
+#else
+        ZVAL_STRING(zvt, this->pattern[i].c_str());
+        zend_hash_index_update(zv_ht, i, zvt);
+#endif
     }
 
     return zv;
@@ -105,17 +129,27 @@ zval *Levenshtein::getBlocks() {
     }
     int i;
     zval *zv, *zvt;
+
+#if ZEND_MODULE_API_NO < 20151012
     MAKE_STD_ZVAL(zv);
     zv->type = IS_ARRAY;
+#else
+    zv->u1.v.type = IS_ARRAY;
+#endif
     HashTable *zv_ht;
     ALLOC_HASHTABLE(zv_ht);
     zend_hash_init(zv_ht, 0, NULL, NULL, 0);
     Z_ARRVAL_P(zv) = zv_ht;
 
     for (i = 0; i <= this->pattern_len; ++i) {
+#if ZEND_MODULE_API_NO < 20151012
         MAKE_STD_ZVAL(zvt);
         ZVAL_STRING(zvt, this->blocks[i].c_str(), 1);
         zend_hash_index_update(zv_ht, i, &zvt, sizeof(zval *), NULL);
+#else
+        ZVAL_STRING(zvt, this->blocks[i].c_str());
+        zend_hash_index_update(zv_ht, i, zvt);
+#endif
     }
 
     return zv;
@@ -127,17 +161,28 @@ zval *Levenshtein::getSearches() {
     }
     int i;
     zval *zv, *zvt;
+#if ZEND_MODULE_API_NO < 20151012
     MAKE_STD_ZVAL(zv);
     zv->type = IS_ARRAY;
+#else
+    zv->u1.v.type = IS_ARRAY;
+#endif
+
     HashTable *zv_ht;
     ALLOC_HASHTABLE(zv_ht);
     zend_hash_init(zv_ht, 0, NULL, NULL, 0);
     Z_ARRVAL_P(zv) = zv_ht;
 
     for (i = 0; i <= this->pattern_len; ++i) {
+
+#if ZEND_MODULE_API_NO < 20151012
         MAKE_STD_ZVAL(zvt);
         ZVAL_STRING(zvt, this->searches[i].c_str(), 1);
         zend_hash_index_update(zv_ht, i, &zvt, sizeof(zval *), NULL);
+#else
+        ZVAL_STRING(zvt, this->searches[i].c_str());
+        zend_hash_index_update(zv_ht, i, zvt);
+#endif
     }
     return zv;
 }
@@ -302,30 +347,62 @@ double Levenshtein::repNonRequired(int i, int j) {
 zval *Levenshtein::getLV() {
     int i, j;
     zval *zv, *zvi, *zvj;
+
+#if ZEND_MODULE_API_NO < 20151012
     MAKE_STD_ZVAL(zv);
     if (this->m == 0) {
         zv->type = IS_NULL;
         return zv;
     }
     zv->type = IS_ARRAY;
+#else
+    if (this->m == 0) {
+        zv->u1.v.type = IS_NULL;
+        return zv;
+    }
+    zv->u1.v.type = IS_ARRAY;
+#endif
     HashTable *zv_ht;
     HashTable *zvi_ht;
     ALLOC_HASHTABLE(zv_ht);
     zend_hash_init(zv_ht, 0, NULL, NULL, 0);
+
+#if ZEND_MODULE_API_NO < 20151012
     zv->value.ht = zv_ht;
+#else
+    zv->value.arr = zv_ht;
+#endif
 
     for (i = 0; i <= this->m; ++i) {
+
+#if ZEND_MODULE_API_NO < 20151012
         MAKE_STD_ZVAL(zvi);
+#endif
         ALLOC_HASHTABLE(zvi_ht);
         zend_hash_init(zvi_ht, 0, NULL, NULL, 0);
         for (j = 0; j <= this->n; ++j) {
+#if ZEND_MODULE_API_NO < 20151012
             MAKE_STD_ZVAL(zvj);
+#endif
             ZVAL_DOUBLE(zvj, this->lv[i][j]);
+
+#if ZEND_MODULE_API_NO < 20151012
             zend_hash_index_update(zvi_ht, j, &zvj, sizeof(zval *), NULL);
+#else
+            zend_hash_index_update(zvi_ht, j, zvj);
+#endif
         }
+
+
+#if ZEND_MODULE_API_NO < 20151012
         zvi->type = IS_ARRAY;
         zvi->value.ht = zvi_ht;
         zend_hash_index_update(zv_ht, i, &zvi, sizeof(zval *), NULL);
+#else
+        zvi->u1.v.type = IS_ARRAY;
+        zvi->value.arr = zvi_ht;
+        zend_hash_index_update(zv_ht, i, zvi);
+#endif
     }
 
     return zv;
@@ -334,30 +411,58 @@ zval *Levenshtein::getLV() {
 zval *Levenshtein::getMap() {
     int i, j;
     zval *zv, *zvi, *zvj;
+
+#if ZEND_MODULE_API_NO < 20151012
     MAKE_STD_ZVAL(zv);
     if (this->m == 0) {
         zv->type = IS_NULL;
         return zv;
     }
     zv->type = IS_ARRAY;
+#else
+    if (this->m == 0) {
+        zv->u1.v.type = IS_NULL;
+        return zv;
+    }
+    zv->u1.v.type = IS_ARRAY;
+#endif
     HashTable *zv_ht;
     HashTable *zvi_ht;
     ALLOC_HASHTABLE(zv_ht);
     zend_hash_init(zv_ht, 0, NULL, NULL, 0);
+#if ZEND_MODULE_API_NO < 20151012
     zv->value.ht = zv_ht;
-
+#else
+    zv->value.arr = zv_ht;
+#endif
     for (i = 0; i <= this->m; ++i) {
+
+#if ZEND_MODULE_API_NO < 20151012
         MAKE_STD_ZVAL(zvi);
+#endif
         ALLOC_HASHTABLE(zvi_ht);
         zend_hash_init(zvi_ht, 0, NULL, NULL, 0);
         for (j = 0; j <= this->n; ++j) {
+#if ZEND_MODULE_API_NO < 20151012
             MAKE_STD_ZVAL(zvj);
+#endif
             ZVAL_LONG(zvj, this->match_map[i][j]);
+
+#if ZEND_MODULE_API_NO < 20151012
             zend_hash_index_update(zvi_ht, j, &zvj, sizeof(zval *), NULL);
+#else
+            zend_hash_index_update(zvi_ht, j, zvj);
+#endif
         }
+#if ZEND_MODULE_API_NO < 20151012
         zvi->type = IS_ARRAY;
         zvi->value.ht = zvi_ht;
         zend_hash_index_update(zv_ht, i, &zvi, sizeof(zval *), NULL);
+#else
+        zvi->u1.v.type = IS_ARRAY;
+        zvi->value.arr = zvi_ht;
+        zend_hash_index_update(zv_ht, i, zvi);
+#endif
     }
 
     return zv;
@@ -409,18 +514,34 @@ void Levenshtein::setLV(zval *lv) {
     this->lv.resize(len + 1, std::vector<double>(0));
     zval **row, **cell;
     int j, row_len;
+#if ZEND_MODULE_API_NO < 20151012
     for (i = 0, zend_hash_internal_pointer_reset(ht);
          zend_hash_get_current_data(ht, (void **) &row) == SUCCESS;
          ++i, zend_hash_move_forward(ht)
             ) {
+#else
+    for (i = 0, zend_hash_internal_pointer_reset(ht);
+         zend_hash_has_more_elements(ht);
+         ++i, zend_hash_move_forward(ht)
+            ) {
+        *row = zend_hash_get_current_data(ht);
+#endif
         if (Z_TYPE_P(*row) == IS_ARRAY) {
             row_ht = Z_ARRVAL_P(*row);
             row_len = zend_hash_num_elements(row_ht);
             this->lv[i].resize(row_len + 1, 0);
+#if ZEND_MODULE_API_NO < 20151012
             for (j = 0, zend_hash_internal_pointer_reset(row_ht);
                  zend_hash_get_current_data(row_ht, (void **) &cell) == SUCCESS;
                  ++j, zend_hash_move_forward(row_ht)
                     ) {
+#else
+            for (j = 0, zend_hash_internal_pointer_reset(row_ht);
+                 zend_hash_has_more_elements(row_ht);
+                 ++j, zend_hash_move_forward(row_ht)
+                    ) {
+                *cell = zend_hash_get_current_data(row_ht);
+#endif
                 this->lv[i][j] = Z_DVAL_P(*cell);
             }
         } else {
@@ -444,18 +565,34 @@ void Levenshtein::setMap(zval *map) {
     this->match_map.resize(len + 1, std::vector<char>(this->n + 1));
     zval **row, **cell;
     int j, row_len;
+#if ZEND_MODULE_API_NO < 20151012
     for (i = 0, zend_hash_internal_pointer_reset(ht);
          zend_hash_get_current_data(ht, (void **) &row) == SUCCESS;
          ++i, zend_hash_move_forward(ht)
             ) {
+#else
+    for (i = 0, zend_hash_internal_pointer_reset(ht);
+         zend_hash_has_more_elements(ht);
+         ++i, zend_hash_move_forward(ht)
+            ) {
+        *row = zend_hash_get_current_data(ht);
+#endif
         if (Z_TYPE_P(*row) == IS_ARRAY) {
             row_ht = Z_ARRVAL_P(*row);
             row_len = zend_hash_num_elements(row_ht);
             this->match_map[i].resize(row_len + 1, 0);
+#if ZEND_MODULE_API_NO < 20151012
             for (j = 0, zend_hash_internal_pointer_reset(row_ht);
                  zend_hash_get_current_data(row_ht, (void **) &cell) == SUCCESS;
                  ++j, zend_hash_move_forward(row_ht)
                     ) {
+#else
+            for (j = 0, zend_hash_internal_pointer_reset(row_ht);
+                 zend_hash_has_more_elements(row_ht);
+                 ++j, zend_hash_move_forward(row_ht)
+                    ) {
+                *cell = zend_hash_get_current_data(row_ht);
+#endif
                 this->match_map[i][j] = (char) Z_LVAL_P(*cell);
             }
         } else {
@@ -675,13 +812,23 @@ zval *Levenshtein::getPath() {
     ALLOC_HASHTABLE(ht);
     zend_hash_init(ht, 0, NULL, NULL, 0);
     for (i = 0; i <= this->m; ++i) {
+
+#if ZEND_MODULE_API_NO < 20151012
         MAKE_STD_ZVAL(ht_val);
         ZVAL_STRING(ht_val, this->path[i].empty() ? "" : this->path[i].c_str(), 1);
         zend_hash_index_update(ht, i, &ht_val, sizeof(zval *), NULL);
+#else
+        ZVAL_STRING(ht_val, this->path[i].empty() ? "" : this->path[i].c_str());
+        zend_hash_index_update(ht, i, ht_val);
+#endif
     }
     zval *retval;
+#if ZEND_MODULE_API_NO < 20151012
     MAKE_STD_ZVAL(retval);
     Z_TYPE_P(retval) = IS_ARRAY;
+#else
+    retval->u1.v.type = IS_ARRAY;
+#endif
     Z_ARRVAL_P(retval) = ht;
     return retval;
 }
@@ -701,10 +848,19 @@ void Levenshtein::setPath(zval *path) {
     zval **data;
     char *path_el;
     int path_len;
+#if ZEND_MODULE_API_NO < 20151012
     for (i = 0, zend_hash_internal_pointer_reset(ht);
          zend_hash_get_current_data(ht, (void **) &data) == SUCCESS;
          ++i, zend_hash_move_forward(ht)
             ) {
+#else
+
+    for (i = 0, zend_hash_internal_pointer_reset(ht);
+         zend_hash_has_more_elements(ht);
+         ++i, zend_hash_move_forward(ht)
+            ) {
+        *data = zend_hash_get_current_data(ht);
+#endif
         path_el = Z_STRVAL_P(*data);
         path_len = Z_STRLEN_P(*data);
         this->path[i].assign(path_el, path_len);
@@ -728,10 +884,20 @@ void Levenshtein::setBlocks(zval *blocks) {
     zval **data;
     char *blocks_el;
     int blocks_len;
+
+#if ZEND_MODULE_API_NO < 20151012
     for (i = 0, zend_hash_internal_pointer_reset(ht);
          zend_hash_get_current_data(ht, (void **) &data) == SUCCESS;
          ++i, zend_hash_move_forward(ht)
             ) {
+#else
+
+    for (i = 0, zend_hash_internal_pointer_reset(ht);
+         zend_hash_has_more_elements(ht);
+         ++i, zend_hash_move_forward(ht)
+            ) {
+        *data = zend_hash_get_current_data(ht);
+#endif
         blocks_el = Z_STRVAL_P(*data);
         blocks_len = Z_STRLEN_P(*data);
         this->blocks[i].assign(blocks_el, blocks_len);
@@ -756,10 +922,19 @@ void Levenshtein::setSearches(zval *searches) {
     zval **data;
     char *searches_el;
     int searches_len;
+#if ZEND_MODULE_API_NO < 20151012
     for (i = 0, zend_hash_internal_pointer_reset(ht);
          zend_hash_get_current_data(ht, (void **) &data) == SUCCESS;
          ++i, zend_hash_move_forward(ht)
             ) {
+#else
+
+    for (i = 0, zend_hash_internal_pointer_reset(ht);
+         zend_hash_has_more_elements(ht);
+         ++i, zend_hash_move_forward(ht)
+            ) {
+        *data = zend_hash_get_current_data(ht);
+#endif
         searches_el = Z_STRVAL_P(*data);
         searches_len = Z_STRLEN_P(*data);
         this->searches[i].assign(searches_el, searches_len);

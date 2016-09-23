@@ -32,17 +32,18 @@ extern zend_class_entry *costs_ce;
 extern void Z2DOUBLE(zval *val);
 
 #ifdef PHP_WIN32
-    #define PHP_NFILIN_FUZZY_MATCH_API __declspec(dllexport)
+#define PHP_NFILIN_FUZZY_MATCH_API __declspec(dllexport)
 #elif defined(__GNUC__) && __GNUC__ >= 4
-    #define PHP_NFILIN_FUZZY_MATCH_API __attribute__ ((visibility("default")))
+#define PHP_NFILIN_FUZZY_MATCH_API __attribute__ ((visibility("default")))
 #else
-    #define PHP_NFILIN_FUZZY_MATCH_API
+#define PHP_NFILIN_FUZZY_MATCH_API
 #endif
 
 #include "storage.h"
 #include "costs.h"
 #include "levenshtein.h"
 
+#if ZEND_MODULE_API_NO < 20151012
 struct levenshtein_object {
     zend_object std;
     Levenshtein *levenshtein;
@@ -57,6 +58,22 @@ struct costs_object {
     zend_object std;
     Costs *costs;
 };
+#else
+struct levenshtein_object {
+    zend_object zo;
+    Levenshtein *levenshtein;
+};
+
+struct storage_object {
+    zend_object zo;
+    Storage *storage;
+};
+
+struct costs_object {
+    zend_object zo;
+    Costs *costs;
+};
+#endif
 
 
 extern void levenshtein_reset_pattern(Levenshtein *levenshtein, zval *object);
