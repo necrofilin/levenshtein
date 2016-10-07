@@ -43,6 +43,9 @@ extern void clearPointer(void **ptr, char type_l1, char type_l2, int len_l1);
 
 extern void echo(char *str);
 
+#define FLUSH_VECTOR(vect) \
+    (vect).erase((vect).begin(),(vect).end())
+
 class Levenshtein {
 public:
     Levenshtein();
@@ -98,6 +101,8 @@ public:
     double getCostDel();
 
     double getCostRep();
+
+    void checkVals();
 
 private:
     std::string string;

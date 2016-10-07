@@ -4,6 +4,7 @@
 #define PHP_NFILIN_FUZZY_MATCH_EXTNAME  "nfilin_fuzzy_match"
 #define PHP_NFILIN_FUZZY_MATCH_EXTVER   "1.0.0"
 
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -45,33 +46,33 @@ extern void Z2DOUBLE(zval *val);
 
 #if ZEND_MODULE_API_NO < 20151012
 struct levenshtein_object {
-    zend_object std;
     Levenshtein *levenshtein;
+    zend_object std;
 };
 
 struct storage_object {
-    zend_object std;
     Storage *storage;
+    zend_object std;
 };
 
 struct costs_object {
-    zend_object std;
     Costs *costs;
+    zend_object std;
 };
 #else
 struct levenshtein_object {
-    zend_object zo;
     Levenshtein *levenshtein;
+    zend_object std;
 };
 
 struct storage_object {
-    zend_object zo;
     Storage *storage;
+    zend_object std;
 };
 
 struct costs_object {
-    zend_object zo;
     Costs *costs;
+    zend_object std;
 };
 #endif
 
@@ -79,5 +80,6 @@ struct costs_object {
 extern void levenshtein_reset_pattern(Levenshtein *levenshtein, zval *object);
 
 extern void levenshtein_update_pattern(Levenshtein *levenshtein, zval *object);
+
 
 #endif
