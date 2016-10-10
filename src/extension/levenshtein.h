@@ -106,6 +106,7 @@ public:
 
 private:
     std::string string;
+    
     std::vector<std::string> pattern;
 
     int pattern_len;

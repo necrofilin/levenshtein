@@ -42,7 +42,6 @@ void levenshtein_free_storage(void *object TSRMLS_DC) {
 }
 
 zend_object_value storage_create_handler(zend_class_entry *type TSRMLS_DC) {
-    printf("%s\n", "storage_create_handler(zend_class_entry *type TSRMLS_DC)");
     zend_object_value retval;
     storage_object *obj = (storage_object *) emalloc(sizeof(storage_object));
     memset(obj, 0, sizeof(storage_object));
@@ -52,11 +51,9 @@ zend_object_value storage_create_handler(zend_class_entry *type TSRMLS_DC) {
     object_properties_init(&obj->std, type);
     retval.handle = zend_objects_store_put(obj, NULL, NULL, NULL TSRMLS_CC);
     retval.handlers = &storage_object_handlers;
-    printf("%s\n", "storage_create_handler: done");
     return retval;
 }
 zend_object_value costs_create_handler(zend_class_entry *type TSRMLS_DC) {
-    printf("%s\n", "costs_create_handler(zend_class_entry *type TSRMLS_DC)");
     zend_object_value retval;
     costs_object *obj = (costs_object *) emalloc(sizeof(costs_object));
     memset(obj, 0, sizeof(costs_object));
@@ -67,11 +64,9 @@ zend_object_value costs_create_handler(zend_class_entry *type TSRMLS_DC) {
     object_properties_init(&obj->std, type);
     retval.handle = zend_objects_store_put(obj, NULL, NULL, NULL TSRMLS_CC);
     retval.handlers = &costs_object_handlers;
-    printf("%s\n", "costs_create_handler: done");
     return retval;
 }
 zend_object_value levenshtein_create_handler(zend_class_entry *type TSRMLS_DC) {
-    printf("%s\n", "levenshtein_create_handler(zend_class_entry *type TSRMLS_DC)");
     zend_object_value retval;
     levenshtein_object *obj = (levenshtein_object *) emalloc(sizeof(levenshtein_object));
     memset(obj, 0, sizeof(levenshtein_object));
@@ -81,9 +76,49 @@ zend_object_value levenshtein_create_handler(zend_class_entry *type TSRMLS_DC) {
     object_properties_init(&obj->std, type);
     retval.handle = zend_objects_store_put(obj, levenshtein_store_dtor, levenshtein_free_storage, NULL TSRMLS_CC);
     retval.handlers = &levenshtein_object_handlers;
-    printf("%s\n", "levenshtein_create_handler: done");
     return retval;
 }
+
+
+HashTable *levenshtein_object_get_properties(zval *object TSRMLS_DC){
+    
+    HashTable *props = zend_std_get_properties(object TSRMLS_DC);
+    // int i;
+    // zval *data;
+    // zval *key;
+    // MAKE_STD_ZVAL(data);
+    // MAKE_STD_ZVAL(key);
+    // for (i = 0, zend_hash_internal_pointer_reset(props);
+    //      zend_hash_get_current_data(props, (void **) &data) == SUCCESS; ++i, zend_hash_move_forward(props)) {
+    //     zend_hash_get_current_key_zval(props, key);
+    //     printf("prop_get: {%s} : %d\n", Z_STRVAL_P(key), Z_TYPE_P(data));
+    // }
+
+    Levenshtein *levenshtein;
+    levenshtein_object *obj = (levenshtein_object *) zend_object_store_get_object(object TSRMLS_CC);
+    levenshtein = obj->levenshtein;
+
+    zval *val;
+    val = levenshtein_get_distance(levenshtein, object);
+    zend_hash_add(props, "distance", sizeof("distance"), &val, sizeof(zval*), NULL);
+    MAKE_STD_ZVAL(val);
+    val = levenshtein_get_path(levenshtein, object);
+    zend_hash_add(props, "path", sizeof("path"), &val, sizeof(zval*), NULL);
+    MAKE_STD_ZVAL(val);
+    val = levenshtein_get_searches(levenshtein, object);
+    zend_hash_add(props, "searches", sizeof("searches"), &val, sizeof(zval*), NULL);
+    MAKE_STD_ZVAL(val);
+    val = levenshtein_get_blocks(levenshtein, object);
+    zend_hash_add(props, "blocks", sizeof("blocks"), &val, sizeof(zval*), NULL);
+    return props;
+}
+
+HashTable *levenshtein_object_get_debug_info(zval *object, int *is_temp TSRMLS_DC){
+    // printf("%s\n", "levenshtein_object_get_debug_info");    
+    HashTable *props = zend_std_get_debug_info(object, is_temp TSRMLS_DC);
+    return props;
+}
+
 #else
 
 zend_object *storage_create_handler(zend_class_entry *type) {
@@ -119,46 +154,21 @@ zend_object *levenshtein_create_handler(zend_class_entry *type) {
 HashTable *levenshtein_object_get_properties(zval *object){
     
     HashTable *props = zend_std_get_properties(object);
-    // zval *data, *key;
-    // int i;
-    // key =(zval*)ecalloc(1, sizeof(zval));
-    // for (i = 0;
-    //      zend_hash_has_more_elements(props) == SUCCESS;
-    //      ++i, zend_hash_move_forward(props)
-    //         ) {
-    //     data = zend_hash_get_current_data(props);
 
-    //     zend_hash_get_current_key_zval(props, key);
-    //     printf("GET PROP KEY T: %d\n", Z_TYPE_P(key));
-    //     printf("GET PROP KEY S: %s\n", Z_STRVAL_P(key));
-    //     printf("GET PROP DATA T: %d\n", Z_TYPE_P(data));
-    // }
+    Levenshtein *levenshtein = Z_LEVENSHTEINOBJ_P(object)->levenshtein;
+
+    zval *val = (zval*) ecalloc(1, sizeof(zval));
+    val = levenshtein_get_distance(levenshtein, object);
+    zend_hash_add(props, ZVAL_FROM_CSTR("distance"), val);
+    val = levenshtein_get_path(levenshtein, object);
+    zend_hash_add(props, ZVAL_FROM_CSTR("path"), val);
+    val = levenshtein_get_searches(levenshtein, object);
+    zend_hash_add(props, ZVAL_FROM_CSTR("searches"), val);
+    val = levenshtein_get_blocks(levenshtein, object);
+    zend_hash_add(props, ZVAL_FROM_CSTR("blocks"), val);
+
     return props;
 }
-
-
-// zval *levenshtein_object_read_dimension(zval *object, zval *offset, int type, zval *rv){    
-//     
-//     zval *val = zend_std_read_dimension(object, offset, type, rv);
-//     return val;
-// }
-
-// static zval *levenshtein_object_get_property_ptr_ptr(zval *object, zval *member, int type, void **cache_slot){    
-//     
-//     zval *val = zend_std_get_property_ptr_ptr(object, member, type, cache_slot);
-//     return val;
-// }
-
-// static int levenshtein_object_has_property(zval *object, zval *member, int has_set_exists, void **cache_slot) {
-//     
-//     int val = zend_std_has_property(object, member, has_set_exists, cache_slot);
-//     return val;   
-// }
-// static int levenshtein_object_has_dimension(zval *object, zval *offset, int check_empty){
-//     
-//     int val = zend_std_has_dimension(object, offset, check_empty);
-//     return val;   
-// }
 
 HashTable *levenshtein_object_get_debug_info(zval *object, int *is_temp){
     // printf("%s\n", "levenshtein_object_get_debug_info");    
@@ -172,7 +182,6 @@ static inline levenshtein_object *levenshtein_object_from_obj(zend_object *obj) 
     return (levenshtein_object*)((char*)(obj) - XtOffsetOf(levenshtein_object, std));
 }
 
-#define Z_LEVENSHTEINOBJ_P(zv) levenshtein_object_from_obj(Z_OBJ_P((zv)))
 
 
 #endif
@@ -225,18 +234,17 @@ PHP_MINIT_FUNCTION (nfilin_fuzzy_match) {
     levenshtein_ce = zend_register_internal_class(&lce TSRMLS_CC);
     (*levenshtein_ce).create_object = levenshtein_create_handler;
     memcpy(&levenshtein_object_handlers, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
+    levenshtein_object_handlers.clone_obj = NULL;
+    storage_object_handlers.clone_obj = NULL;
+    costs_object_handlers.clone_obj = NULL;
+    levenshtein_object_handlers.get_properties = levenshtein_object_get_properties;    
+    levenshtein_object_handlers.get_debug_info = levenshtein_object_get_debug_info;
 #else
     levenshtein_ce = zend_register_internal_class(&lce);   
     (*levenshtein_ce).create_object = levenshtein_create_handler;
     memcpy(&levenshtein_object_handlers, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
     levenshtein_object_handlers.offset = XtOffsetOf(levenshtein_object, std);
-    levenshtein_object_handlers.get_properties = levenshtein_object_get_properties;
-    // // levenshtein_object_handlers.read_property = levenshtein_object_read_property;
-    // // levenshtein_object_handlers.read_dimension = levenshtein_object_read_dimension;
-    // // levenshtein_object_handlers.get_property_ptr_ptr = levenshtein_object_get_property_ptr_ptr;
-    // // levenshtein_object_handlers.get = levenshtein_object_get;
-    // // levenshtein_object_handlers.has_property = levenshtein_object_has_property;
-    // // levenshtein_object_handlers.has_dimension = levenshtein_object_has_dimension;
+    levenshtein_object_handlers.get_properties = levenshtein_object_get_properties;    
     levenshtein_object_handlers.get_debug_info = levenshtein_object_get_debug_info;
 #endif 
         
@@ -277,6 +285,9 @@ PHP_MINIT_FUNCTION (nfilin_fuzzy_match) {
     zend_declare_property_double(costs_ce, "insert", sizeof("insert") - 1, 1, ZEND_ACC_PUBLIC TSRMLS_CC);
     zend_declare_property_double(costs_ce, "replace", sizeof("replace") - 1, 1, ZEND_ACC_PUBLIC TSRMLS_CC);
     zend_declare_property_double(costs_ce, "delete", sizeof("delete") - 1, 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+    levenshtein_object_handlers.clone_obj = NULL;
+    storage_object_handlers.clone_obj = NULL;
+    costs_object_handlers.clone_obj = NULL;
 #else
     // zend_declare_property_null(levenshtein_ce, "pattern", sizeof("pattern") - 1, ZEND_ACC_PUBLIC | ZEND_ACC_USE_GUARDS);
     zend_declare_property_null(levenshtein_ce, "storage", sizeof("storage") - 1, ZEND_ACC_PRIVATE );
@@ -336,7 +347,6 @@ zend_module_entry nfilin_fuzzy_match_module_entry = {
 ZEND_GET_MODULE(nfilin_fuzzy_match)
 /* #############################   Method implementation ########################################### */
 PHP_METHOD (Levenshtein, __construct) {
-    printf("%s\n", "__construct");
     Levenshtein *levenshtein = NULL;
     zval *object = getThis();
     zval *string, *pattern, rv;
@@ -359,9 +369,9 @@ PHP_METHOD (Levenshtein, __construct) {
     MAKE_STD_ZVAL(val);
     object_init_ex(arr, storage_ce);
     array_init(val);
-    zend_update_property(storage_ce, arr, "pattern", sizeof("pattern") - 1, val TSRMLS_DC);
-    MAKE_STD_ZVAL(val);
-    array_init(val);
+    // zend_update_property(storage_ce, arr, "pattern", sizeof("pattern") - 1, val TSRMLS_DC);
+    // MAKE_STD_ZVAL(val);
+    // array_init(val);
     zend_update_property(storage_ce, arr, "path", sizeof("path") - 1, val TSRMLS_DC);
     MAKE_STD_ZVAL(val);
     array_init(val);
@@ -396,6 +406,8 @@ PHP_METHOD (Levenshtein, __construct) {
         levenshtein->setPattern(Z_ARRVAL_P(pattern));
         levenshtein_update_pattern(levenshtein, object);
     }
+
+    obj->levenshtein = levenshtein;
 #else
     string = (zval*)ecalloc(1, sizeof(zval));
     pattern = (zval*)ecalloc(1, sizeof(zval));
@@ -834,7 +846,6 @@ void update_storage_property(Levenshtein *levenshtein, zval *object, char *prope
 
 
 zval *levenshtein_get_distance(Levenshtein *levenshtein, zval *object) {
-
     zval *string, *pattern, *ret;
 #if ZEND_MODULE_API_NO < 20151012
     MAKE_STD_ZVAL(ret);
@@ -889,7 +900,6 @@ zval *levenshtein_get_distance(Levenshtein *levenshtein, zval *object) {
 }
 
 zval *levenshtein_get_path(Levenshtein *levenshtein, zval *object) {
-
     zval *distance, *ret, *blocks, *searches;
 #if ZEND_MODULE_API_NO < 20151012
     MAKE_STD_ZVAL(ret);
@@ -927,7 +937,6 @@ zval *levenshtein_get_path(Levenshtein *levenshtein, zval *object) {
 zval *levenshtein_get_blocks(Levenshtein *levenshtein, zval *object) {
 
     zval *distance, *ret, *blocks, *searches;
-    // printf("%s\n", "----GET BLOCK");
 #if ZEND_MODULE_API_NO < 20151012
     MAKE_STD_ZVAL(ret);
     MAKE_STD_ZVAL(blocks);
@@ -980,7 +989,7 @@ zval *levenshtein_get_blocks(Levenshtein *levenshtein, zval *object) {
 }
 
 zval *levenshtein_get_searches(Levenshtein *levenshtein, zval *object) {
-
+    // printf("%s\n", "levenshtein_get_searches");
     zval *distance, *ret, *blocks, *searches;
 #if ZEND_MODULE_API_NO < 20151012
     MAKE_STD_ZVAL(ret);
@@ -1120,13 +1129,21 @@ PHP_METHOD (Levenshtein, __get) {
     zval *object = getThis();
 #if ZEND_MODULE_API_NO < 20151012
     levenshtein_object *obj = (levenshtein_object *) zend_object_store_get_object(object TSRMLS_CC);
+    levenshtein = obj->levenshtein;
+    if (levenshtein == NULL){
+        zend_throw_exception(zend_exception_get_default(TSRMLS_C), "Levenshtein object not initialized", 0 TSRMLS_CC);
+        RETURN_NULL();
+    }
 #else
     levenshtein_object *obj = Z_LEVENSHTEINOBJ_P(object);
-#endif
     levenshtein = obj->levenshtein;
-    levenshtein->checkVals();
-    if (levenshtein == NULL)
-        zend_throw_exception(zend_exception_get_default(TSRMLS_C), "Levenshtein object not initialized", 0 TSRMLS_CC);
+    if (levenshtein == NULL){
+        zend_throw_exception(zend_exception_get_default(TSRMLS_C), "Levenshtein object not initialized", 0);
+        RETURN_NULL();
+    }
+#endif
+
+    
     char *key;
     int key_len;
     std::string stdKey = "";
@@ -1149,7 +1166,6 @@ PHP_METHOD (Levenshtein, __get) {
 #endif    
     
     // printf("__GET: %s\n", stdKey.c_str());  
-    
     *return_value = *levenshtein__get(levenshtein, object, stdKey);
     zval_copy_ctor(return_value);
     // printf("END __get\n");
@@ -1254,7 +1270,8 @@ PHP_METHOD (Levenshtein, getStorage) {
     zval_copy_ctor(return_value);
 }
 
-void levenshtein_set_string(Levenshtein *levenshtein, std::string str){    
+void levenshtein_set_string(Levenshtein *levenshtein, std::string str){  
+    // printf("%s\n", "levenshtein_set_string");  
     char *c_str = (char *) ecalloc(1, sizeof(char) * (str.length() + 1));
     strncpy(c_str, str.c_str(), str.length());
     c_str[str.length()] = '\0';

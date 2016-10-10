@@ -46,18 +46,18 @@ extern void Z2DOUBLE(zval *val);
 
 #if ZEND_MODULE_API_NO < 20151012
 struct levenshtein_object {
-    Levenshtein *levenshtein;
     zend_object std;
+    Levenshtein *levenshtein;
 };
 
 struct storage_object {
-    Storage *storage;
     zend_object std;
+    Storage *storage;
 };
 
 struct costs_object {
-    Costs *costs;
     zend_object std;
+    Costs *costs;
 };
 #else
 struct levenshtein_object {
@@ -74,6 +74,14 @@ struct costs_object {
     Costs *costs;
     zend_object std;
 };
+
+static inline levenshtein_object *levenshtein_object_from_obj(zend_object *obj);
+
+#define Z_LEVENSHTEINOBJ_P(zv) levenshtein_object_from_obj(Z_OBJ_P((zv)))
+
+#define ZVAL_FROM_CSTR(c_str) \
+   zend_string_init(c_str, strlen(c_str), 0)
+
 #endif
 
 
@@ -81,5 +89,11 @@ extern void levenshtein_reset_pattern(Levenshtein *levenshtein, zval *object);
 
 extern void levenshtein_update_pattern(Levenshtein *levenshtein, zval *object);
 
+
+
+zval *levenshtein_get_distance(Levenshtein *levenshtein, zval *object);
+zval *levenshtein_get_path(Levenshtein *levenshtein, zval *object);
+zval *levenshtein_get_blocks(Levenshtein *levenshtein, zval *object);
+zval *levenshtein_get_searches(Levenshtein *levenshtein, zval *object);
 
 #endif
