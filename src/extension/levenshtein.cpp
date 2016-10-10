@@ -94,13 +94,7 @@ void Levenshtein::setPattern(HashTable *pattern, char flush_if_changed) {
 
 
 void Levenshtein::setString(char *str) {
-    printf("97: `%d`\n", this ==  NULL);
-    // if(this->string.empty()){
-    //     printf("%s\n", "104: string empty" );
-    // } else {
-    //     printf("104: string: `%s`\n", this->string.c_str());
-
-    // }
+    
     if (this->string.empty() || this->string.compare(str) != 0) {
         this->flushProcessed();
         this->string.assign(str);
@@ -108,7 +102,7 @@ void Levenshtein::setString(char *str) {
 }
 
 zval *Levenshtein::getString() {
-    // printf("getString `%s`\n", this->string.c_str());
+    
     zval *zvt;
 #if ZEND_MODULE_API_NO < 20151012
     MAKE_STD_ZVAL(zvt);
@@ -288,22 +282,16 @@ double Levenshtein::replaceCost(int i, int j) {
 }
 
 double Levenshtein::getDistance() {
-    // printf("GET DIST: 292\n");
     if (!this->lv.empty()) {
         return this->distance;
     }
-    // printf("GET DIST: 296\n");
     this->m = this->pattern_len;
-    // printf("295: `%s`\n", typeid(this->string).name());
     if (this->string.empty()) {
         this->n = 0;
         this->initLV();
         this->initMap();
         return this->m;
     }
-    // printf("GET DIST: 305\n");
-    // printf("GET DIST FOR: `%s`\n", this->string.c_str());
-    // printf("303: `%s`\n", typeid(this->string).name());
     this->n = this->string.size();
     this->initLV();
     this->initMap();

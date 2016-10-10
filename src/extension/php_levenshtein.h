@@ -100,6 +100,25 @@ zval *levenshtein_get_searches(Levenshtein *levenshtein, zval *object);
 
 #if ZEND_MODULE_API_NO < 20151012
 
+#define FN_OBJECT_CREATE_HANDLER(name) \
+    zend_object_value name ## _create_handler(zend_class_entry *type TSRMLS_DC) 
+
+#define INIT_OBJECT_CREATE_HANDLER(obj, class_entry, dtor, storage, clone, handlers_p, retval) \
+    {\
+        zend_object_std_init(&obj->std, class_entry TSRMLS_CC);\
+        \
+        ALLOC_HASHTABLE(obj->std.properties);\
+        zend_hash_init(obj->std.properties, 0, NULL, ZVAL_PTR_DTOR, 0);\
+        object_properties_init(&obj->std, class_entry);\
+        (*retval).handle = zend_objects_store_put(obj, dtor, storage, clone TSRMLS_CC);\
+        \
+        (*retval).handlers = (const zend_object_handlers*)(&handlers_p);\
+    }
+#define INIT_OBJECT_CREATE_HANDLER_RETURN(obj, retval) \
+    retval
+
+#define MAKE_PERSISTENT_ZVAL(val) MAKE_STD_ZVAL(val)
+
 #define ZEND_READ_PROPERTY(class_entry, object, property) zend_read_property(class_entry, object, property, sizeof(property) - 1, 1 TSRMLS_CC)
 
 #define INIT_ZOBJECT(class_entry, val) \
@@ -114,12 +133,38 @@ zval *levenshtein_get_searches(Levenshtein *levenshtein, zval *object);
     array_init(buff); \
     zend_update_property(class_entry, object, property, sizeof(property) - 1, buff TSRMLS_DC)
 
+#define ZEND_HASH_GET_CURRENT_DATA(ht, val)\
+        MAKE_STD_ZVAL(val); \
+        zend_hash_get_current_data(ht, (void**)val)
+#define ZVAL_STRING_EX(val, str) \
+        ZVAL_STRING(prop, "blocks", 1);
+
 #else
+
+#define FN_OBJECT_CREATE_HANDLER(name) \
+    zend_object* name##_create_handler(zend_class_entry *type) 
+
+#define INIT_OBJECT_CREATE_HANDLER(obj, class_entry, dtor, storage, clone, handlers, retval) \
+    {\
+        zend_object_std_init(&obj->std, class_entry TSRMLS_CC);\
+        \
+        object_properties_init(&obj->std, class_entry);\
+        \
+        obj->std.handlers = &handlers;\
+    }
+
+#define INIT_OBJECT_CREATE_HANDLER_RETURN(obj, retval) \
+    &obj->std
 
 #define ZEND_READ_PROPERTY(class_entry, object, property) zend_read_property(class_entry, object, property, sizeof(property) - 1, 1, (zval*)ecalloc(1, sizeof(zval)))
 
+#define MAKE_PERSISTENT_ZVAL(val)\
+    val = (zval*)ecalloc(1, sizeof(zval)); \
+    ZVAL_NULL(val)
+
 #define MAKE_STD_ZVAL(val) \
     if(val != NULL) \
+        printf("######FREE %p\n", val); \
         try{\
             efree(val); \
         } catch (int e){\
@@ -144,7 +189,11 @@ zval *levenshtein_get_searches(Levenshtein *levenshtein, zval *object);
     array_init(buff); \
     zend_update_property(class_entry, object, property, sizeof(property) - 1, buff)
 
-    // buff = (zval*)ecalloc(1, sizeof(zval)); 
+#define ZEND_HASH_GET_CURRENT_DATA(ht, val)\
+        val = zend_hash_get_current_data(ht)
+    
+#define ZVAL_STRING_EX(val, str) \
+        ZVAL_STRING(prop, "blocks");
 #endif
 
 #endif
