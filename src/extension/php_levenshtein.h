@@ -60,20 +60,10 @@ struct costs_object {
     Costs *costs;
 };
 
-#define INIT_ZOBJECT(class_entry, val) \
-    if(val == NULL) { \
-        MAKE_STD_ZVAL(val); \
-        object_init_ex(val, class_entry);\
-    }
-
-#define FLUSH_OBJECT_PROPERTY_ARRAY(class_entry, object, property, buff) \
-    INIT_ZOBJECT(class_entry, object); \
-    if(buff != NULL) efree(buff); \
-    MAKE_STD_ZVAL(buff); \
-    array_init(buff); \
-    zend_update_property(class_entry, object, property, sizeof(property) - 1, buff TSRMLS_DC)
+#define Z_LEVENSHTEINOBJ_P(zv) (levenshtein_object *) zend_object_store_get_object(zv TSRMLS_CC)
 
 #else
+
 struct levenshtein_object {
     Levenshtein *levenshtein;
     zend_object std;
@@ -93,22 +83,6 @@ static inline levenshtein_object *levenshtein_object_from_obj(zend_object *obj);
 
 #define Z_LEVENSHTEINOBJ_P(zv) levenshtein_object_from_obj(Z_OBJ_P((zv)))
 
-#define ZVAL_FROM_CSTR(c_str) \
-   zend_string_init(c_str, strlen(c_str), 0)
-
-#define INIT_ZOBJECT(class_entry, val) \
-    if(val == NULL) { \
-        val = (zval*)ecalloc(1, sizeof(zval)); \
-        object_init_ex(val, class_entry);\
-    }
-
-#define FLUSH_OBJECT_PROPERTY_ARRAY(class_entry, object, property, buff) \
-    printf("FLUSH: %s\n", property); \
-    INIT_ZOBJECT(class_entry, object); \
-    if(buff != NULL) efree(buff); \
-    buff = (zval*)ecalloc(1, sizeof(zval)); \
-    array_init(buff); \
-    zend_update_property(class_entry, object, property, sizeof(property) - 1, buff)
 
 #endif
 
@@ -125,11 +99,52 @@ zval *levenshtein_get_blocks(Levenshtein *levenshtein, zval *object);
 zval *levenshtein_get_searches(Levenshtein *levenshtein, zval *object);
 
 #if ZEND_MODULE_API_NO < 20151012
-#define ZEND_READ_PROPERTY(class_entry, object, property) \
-    zend_read_property(class_entry, object, property, sizeof(property) - 1, 1 TSRMLS_CC)
+
+#define ZEND_READ_PROPERTY(class_entry, object, property) zend_read_property(class_entry, object, property, sizeof(property) - 1, 1 TSRMLS_CC)
+
+#define INIT_ZOBJECT(class_entry, val) \
+    if(val == NULL) { \
+        MAKE_STD_ZVAL(val); \
+        object_init_ex(val, class_entry);\
+    }
+
+#define FLUSH_OBJECT_PROPERTY_ARRAY(class_entry, object, property, buff) \
+    INIT_ZOBJECT(class_entry, object); \
+    MAKE_STD_ZVAL(buff); \
+    array_init(buff); \
+    zend_update_property(class_entry, object, property, sizeof(property) - 1, buff TSRMLS_DC)
+
 #else
-#define ZEND_READ_PROPERTY(class_entry, object, property) \
-    zend_read_property(class_entry, object, property, sizeof(property) - 1, 1, NULL)
+
+#define ZEND_READ_PROPERTY(class_entry, object, property) zend_read_property(class_entry, object, property, sizeof(property) - 1, 1, (zval*)ecalloc(1, sizeof(zval)))
+
+#define MAKE_STD_ZVAL(val) \
+    if(val != NULL) \
+        try{\
+            efree(val); \
+        } catch (int e){\
+            \
+        }\
+    val = (zval*)ecalloc(1, sizeof(zval)); \
+    ZVAL_NULL(val)
+
+#define ZVAL_FROM_CSTR(c_str) \
+   zend_string_init(c_str, strlen(c_str), 0)
+
+#define INIT_ZOBJECT(class_entry, val) \
+    if(val == NULL) { \
+        MAKE_STD_ZVAL(val); \
+        object_init_ex(val, class_entry);\
+    }
+
+#define FLUSH_OBJECT_PROPERTY_ARRAY(class_entry, object, property, buff) \
+    printf("FLUSH: %s\n", property); \
+    INIT_ZOBJECT(class_entry, object); \
+    MAKE_STD_ZVAL(buff); \
+    array_init(buff); \
+    zend_update_property(class_entry, object, property, sizeof(property) - 1, buff)
+
+    // buff = (zval*)ecalloc(1, sizeof(zval)); 
 #endif
 
 #endif

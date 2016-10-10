@@ -89,6 +89,7 @@ zend_object_value levenshtein_create_handler(zend_class_entry *type TSRMLS_DC) {
 
 HashTable *levenshtein_object_get_properties(zval *object TSRMLS_DC)
 {    
+    printf("%s\n", "GET PROPS");
     HashTable *props = zend_std_get_properties(object TSRMLS_DC);
     Levenshtein *levenshtein;
     levenshtein_object *obj = (levenshtein_object *) zend_object_store_get_object(object TSRMLS_CC);
@@ -150,6 +151,7 @@ zend_object *levenshtein_create_handler(zend_class_entry *type)
 
 HashTable *levenshtein_object_get_properties(zval *object)
 {    
+    printf("%s\n", "GET PROPS");
     HashTable *props = zend_std_get_properties(object);
 
     Levenshtein *levenshtein = Z_LEVENSHTEINOBJ_P(object)->levenshtein;
@@ -164,6 +166,7 @@ HashTable *levenshtein_object_get_properties(zval *object)
     val = levenshtein_get_blocks(levenshtein, object);
     zend_hash_add(props, ZVAL_FROM_CSTR("blocks"), val);
 
+    printf("%s\n", "GET PROPS DONE");
     return props;
 }
 
@@ -232,22 +235,13 @@ PHP_MINIT_FUNCTION (nfilin_fuzzy_match)
     zend_class_entry lce;
     INIT_NS_CLASS_ENTRY(lce, "Nfilin\\Libs", "Levenshtein", levenshtein_methods);
 
-#if ZEND_MODULE_API_NO < 20151012 
     levenshtein_ce = zend_register_internal_class(&lce TSRMLS_CC);
     (*levenshtein_ce).create_object = levenshtein_create_handler;
     memcpy(&levenshtein_object_handlers, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
-    levenshtein_object_handlers.clone_obj = NULL;
-    storage_object_handlers.clone_obj = NULL;
-    costs_object_handlers.clone_obj = NULL;
     levenshtein_object_handlers.get_properties = levenshtein_object_get_properties;    
     levenshtein_object_handlers.get_debug_info = levenshtein_object_get_debug_info;
-#else
-    levenshtein_ce = zend_register_internal_class(&lce);   
-    (*levenshtein_ce).create_object = levenshtein_create_handler;
-    memcpy(&levenshtein_object_handlers, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
+#if ZEND_MODULE_API_NO >= 20151012 
     levenshtein_object_handlers.offset = XtOffsetOf(levenshtein_object, std);
-    levenshtein_object_handlers.get_properties = levenshtein_object_get_properties;    
-    levenshtein_object_handlers.get_debug_info = levenshtein_object_get_debug_info;
 #endif 
     
     zend_class_entry sce;
@@ -262,11 +256,6 @@ PHP_MINIT_FUNCTION (nfilin_fuzzy_match)
     (*costs_ce).create_object = costs_create_handler;
     memcpy(&costs_object_handlers, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
 
-
-#if ZEND_MODULE_API_NO < 20151012 
-    zend_declare_property_string(levenshtein_ce, "string", sizeof("string") - 1, "", ZEND_ACC_PUBLIC TSRMLS_CC);
-
-    zend_declare_property_null(levenshtein_ce, "pattern", sizeof("pattern") - 1, ZEND_ACC_PUBLIC TSRMLS_CC);
     zend_declare_property_null(levenshtein_ce, "storage", sizeof("storage") - 1, ZEND_ACC_PRIVATE TSRMLS_CC);
     zend_declare_property_null(levenshtein_ce, "costs", sizeof("costs") - 1, ZEND_ACC_PUBLIC TSRMLS_CC);
 
@@ -284,29 +273,51 @@ PHP_MINIT_FUNCTION (nfilin_fuzzy_match)
     zend_declare_property_double(costs_ce, "insert", sizeof("insert") - 1, 1, ZEND_ACC_PUBLIC TSRMLS_CC);
     zend_declare_property_double(costs_ce, "replace", sizeof("replace") - 1, 1, ZEND_ACC_PUBLIC TSRMLS_CC);
     zend_declare_property_double(costs_ce, "delete", sizeof("delete") - 1, 1, ZEND_ACC_PUBLIC TSRMLS_CC);
-    levenshtein_object_handlers.clone_obj = NULL;
-    storage_object_handlers.clone_obj = NULL;
-    costs_object_handlers.clone_obj = NULL;
-#else
-    zend_declare_property_null(levenshtein_ce, "storage", sizeof("storage") - 1, ZEND_ACC_PRIVATE );
-    zend_declare_property_null(levenshtein_ce, "costs", sizeof("costs") - 1, ZEND_ACC_PUBLIC );
 
-    zend_declare_property_double(storage_ce, "cost_ins", sizeof("cost_ins") - 1, 1, ZEND_ACC_PUBLIC);
-    zend_declare_property_double(storage_ce, "cost_rep", sizeof("cost_rep") - 1, 1, ZEND_ACC_PUBLIC);
-    zend_declare_property_double(storage_ce, "cost_del", sizeof("cost_del") - 1, 1, ZEND_ACC_PUBLIC);
-    zend_declare_property_null(storage_ce, "pattern", sizeof("pattern") - 1, ZEND_ACC_PUBLIC);
-    zend_declare_property_null(storage_ce, "string", sizeof("string") - 1, ZEND_ACC_PUBLIC);
-    zend_declare_property_null(storage_ce, "path", sizeof("path") - 1, ZEND_ACC_PUBLIC);
-    zend_declare_property_null(storage_ce, "blocks", sizeof("blocks") - 1, ZEND_ACC_PUBLIC);
-    zend_declare_property_null(storage_ce, "searches", sizeof("searches") - 1, ZEND_ACC_PUBLIC);
-    zend_declare_property_null(storage_ce, "lv", sizeof("lv") - 1, ZEND_ACC_PUBLIC);
-    zend_declare_property_null(storage_ce, "match_map", sizeof("match_map") - 1, ZEND_ACC_PUBLIC);
-    zend_declare_property_null(storage_ce, "distance", sizeof("distance") - 1, ZEND_ACC_PUBLIC);
+// #if ZEND_MODULE_API_NO < 20151012 
+//     // zend_declare_property_string(levenshtein_ce, "string", sizeof("string") - 1, "", ZEND_ACC_PUBLIC TSRMLS_CC);
 
-    zend_declare_property_double(costs_ce, "insert", sizeof("insert") - 1, 1, ZEND_ACC_PUBLIC);
-    zend_declare_property_double(costs_ce, "replace", sizeof("replace") - 1, 1, ZEND_ACC_PUBLIC);
-    zend_declare_property_double(costs_ce, "delete", sizeof("delete") - 1, 1, ZEND_ACC_PUBLIC);
-#endif
+//     // zend_declare_property_null(levenshtein_ce, "pattern", sizeof("pattern") - 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+//     zend_declare_property_null(levenshtein_ce, "storage", sizeof("storage") - 1, ZEND_ACC_PRIVATE TSRMLS_CC);
+//     zend_declare_property_null(levenshtein_ce, "costs", sizeof("costs") - 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+
+//     zend_declare_property_double(storage_ce, "cost_ins", sizeof("cost_ins") - 1, 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+//     zend_declare_property_double(storage_ce, "cost_rep", sizeof("cost_rep") - 1, 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+//     zend_declare_property_double(storage_ce, "cost_del", sizeof("cost_del") - 1, 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+//     zend_declare_property_null(storage_ce, "pattern", sizeof("pattern") - 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+//     zend_declare_property_null(storage_ce, "path", sizeof("path") - 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+//     zend_declare_property_null(storage_ce, "blocks", sizeof("blocks") - 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+//     zend_declare_property_null(storage_ce, "searches", sizeof("searches") - 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+//     zend_declare_property_null(storage_ce, "lv", sizeof("lv") - 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+//     zend_declare_property_null(storage_ce, "match_map", sizeof("match_map") - 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+//     zend_declare_property_null(storage_ce, "distance", sizeof("distance") - 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+
+//     zend_declare_property_double(costs_ce, "insert", sizeof("insert") - 1, 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+//     zend_declare_property_double(costs_ce, "replace", sizeof("replace") - 1, 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+//     zend_declare_property_double(costs_ce, "delete", sizeof("delete") - 1, 1, ZEND_ACC_PUBLIC TSRMLS_CC);
+//     // levenshtein_object_handlers.clone_obj = NULL;
+//     // storage_object_handlers.clone_obj = NULL;
+//     // costs_object_handlers.clone_obj = NULL;
+// #else
+//     zend_declare_property_null(levenshtein_ce, "storage", sizeof("storage") - 1, ZEND_ACC_PRIVATE );
+//     zend_declare_property_null(levenshtein_ce, "costs", sizeof("costs") - 1, ZEND_ACC_PUBLIC );
+
+//     zend_declare_property_double(storage_ce, "cost_ins", sizeof("cost_ins") - 1, 1, ZEND_ACC_PUBLIC);
+//     zend_declare_property_double(storage_ce, "cost_rep", sizeof("cost_rep") - 1, 1, ZEND_ACC_PUBLIC);
+//     zend_declare_property_double(storage_ce, "cost_del", sizeof("cost_del") - 1, 1, ZEND_ACC_PUBLIC);
+//     zend_declare_property_null(storage_ce, "pattern", sizeof("pattern") - 1, ZEND_ACC_PUBLIC);
+//     zend_declare_property_null(storage_ce, "string", sizeof("string") - 1, ZEND_ACC_PUBLIC);
+//     zend_declare_property_null(storage_ce, "path", sizeof("path") - 1, ZEND_ACC_PUBLIC);
+//     zend_declare_property_null(storage_ce, "blocks", sizeof("blocks") - 1, ZEND_ACC_PUBLIC);
+//     zend_declare_property_null(storage_ce, "searches", sizeof("searches") - 1, ZEND_ACC_PUBLIC);
+//     zend_declare_property_null(storage_ce, "lv", sizeof("lv") - 1, ZEND_ACC_PUBLIC);
+//     zend_declare_property_null(storage_ce, "match_map", sizeof("match_map") - 1, ZEND_ACC_PUBLIC);
+//     zend_declare_property_null(storage_ce, "distance", sizeof("distance") - 1, ZEND_ACC_PUBLIC);
+
+//     zend_declare_property_double(costs_ce, "insert", sizeof("insert") - 1, 1, ZEND_ACC_PUBLIC);
+//     zend_declare_property_double(costs_ce, "replace", sizeof("replace") - 1, 1, ZEND_ACC_PUBLIC);
+//     zend_declare_property_double(costs_ce, "delete", sizeof("delete") - 1, 1, ZEND_ACC_PUBLIC);
+// #endif
 
 
     // levenshtein_object_handlers.clone_obj = NULL;
@@ -354,19 +365,119 @@ PHP_METHOD (Levenshtein, __construct)
     double cost_ins = 1, cost_rep = 1, cost_del = 1;
     zval *storage, *arr, *val, *prop, *costs;
 
-#if ZEND_MODULE_API_NO < 20151012
+// #if ZEND_MODULE_API_NO < 20151012
+//     MAKE_STD_ZVAL(string);
+//     MAKE_STD_ZVAL(pattern);    
+//     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|zzddd", &pattern, &string, &cost_ins, &cost_rep, &cost_del) == FAILURE) {
+//         RETURN_NULL();
+//     }
+
+//     levenshtein = new Levenshtein();
+
+//     levenshtein_object *obj = Z_LEVENSHTEINOBJ_P(object);
+//     // levenshtein_object *obj = (levenshtein_object *) zend_object_store_get_object(object TSRMLS_CC);
+
+//     obj->levenshtein = levenshtein;
+
+//     storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
+//     costs = ZEND_READ_PROPERTY(levenshtein_ce, object, "costs");
+//     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "pattern", val);
+//     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "path", val);
+//     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "blocks", val);
+//     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "searches", val);
+//     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "lv", val);
+//     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "match_map", val);
+
+//     zend_update_property_null(storage_ce, arr, "distance", sizeof("distance") - 1 TSRMLS_DC);
+//     zend_update_property_double(storage_ce, arr, "cost_ins", sizeof("cost_ins") - 1, cost_ins  TSRMLS_DC);
+//     zend_update_property_double(storage_ce, arr, "cost_del", sizeof("cost_del") - 1, cost_del  TSRMLS_DC);
+//     zend_update_property_double(storage_ce, arr, "cost_rep", sizeof("cost_rep") - 1, cost_rep  TSRMLS_DC);
+//     zend_update_property(levenshtein_ce, object, "storage", sizeof("storage") - 1, arr TSRMLS_DC);
+
+//     arr = NULL;
+//     INIT_ZOBJECT(costs_ce, arr);
+//     zend_update_property_double(costs_ce, arr, "insert", sizeof("insert") - 1, cost_ins  TSRMLS_DC);
+//     zend_update_property_double(costs_ce, arr, "delete", sizeof("delete") - 1, cost_del  TSRMLS_DC);
+//     zend_update_property_double(costs_ce, arr, "replace", sizeof("replace") - 1, cost_rep  TSRMLS_DC);
+//     zend_update_property(levenshtein_ce, object, "costs", sizeof("costs") - 1, arr TSRMLS_DC);
+//     if (Z_TYPE_P(string) == IS_STRING) {
+//         zend_update_property(levenshtein_ce, object, "string", sizeof("string") - 1, string TSRMLS_DC);
+//     }
+//     if (Z_TYPE_P(pattern) == IS_STRING) {
+//         levenshtein->setPattern(Z_STRVAL_P(pattern));
+//         levenshtein_update_pattern(levenshtein, object);
+//     } else if (Z_TYPE_P(pattern) == IS_ARRAY) {
+//         levenshtein->setPattern(Z_ARRVAL_P(pattern));
+//         levenshtein_update_pattern(levenshtein, object);
+//     }
+
+// #else    
+//     MAKE_STD_ZVAL(string);
+//     MAKE_STD_ZVAL(pattern);    
+//     // string = (zval*)ecalloc(1, sizeof(zval));
+//     // pattern = (zval*)ecalloc(1, sizeof(zval));
+//     if (zend_parse_parameters(ZEND_NUM_ARGS(), "|zzddd", &pattern, &string, &cost_ins, &cost_rep, &cost_del) == FAILURE) {
+//         RETURN_NULL();
+//     }
+
+//     levenshtein = new Levenshtein();    
+
+//     levenshtein_object *obj = Z_LEVENSHTEINOBJ_P(object);
+
+//     obj->levenshtein = levenshtein;
+//     printf("%s\n", "431");
+//     storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
+//     costs = ZEND_READ_PROPERTY(levenshtein_ce, object, "costs");
+
+//     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "pattern", val);
+//     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "path", val);
+//     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "blocks", val);
+//     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "searches", val);
+//     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "lv", val);
+//     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "match_map", val);
+
+//     zend_update_property_null(storage_ce, arr, "distance", sizeof("distance") - 1);
+//     zend_update_property_double(storage_ce, arr, "cost_ins", sizeof("cost_ins") - 1, cost_ins);
+//     zend_update_property_double(storage_ce, arr, "cost_del", sizeof("cost_del") - 1, cost_del);
+//     zend_update_property_double(storage_ce, arr, "cost_rep", sizeof("cost_rep") - 1, cost_rep);
+    
+//     zend_update_property(levenshtein_ce, object, "storage", sizeof("storage") - 1, arr);
+    
+//     arr = NULL;
+//     INIT_ZOBJECT(costs_ce, arr);
+//     zend_update_property_double(costs_ce, arr, "insert", sizeof("insert") - 1, cost_ins);
+//     zend_update_property_double(costs_ce, arr, "delete", sizeof("delete") - 1, cost_del);
+//     zend_update_property_double(costs_ce, arr, "replace", sizeof("replace") - 1, cost_rep);
+//     zend_update_property(levenshtein_ce, object, "costs", sizeof("costs") - 1, arr);
+
+//     if (Z_TYPE_P(string) == IS_STRING) {
+//         zend_update_property(levenshtein_ce, object, "string", sizeof("string") - 1, string);
+//     }
+
+//     if (Z_TYPE_P(pattern) == IS_STRING) {
+//         levenshtein->setPattern(Z_STRVAL_P(pattern));
+//         levenshtein_update_pattern(levenshtein, object);
+//     } else if (Z_TYPE_P(pattern) == IS_ARRAY) {
+//         levenshtein->setPattern(Z_ARRVAL_P(pattern));
+//         levenshtein_update_pattern(levenshtein, object);
+//     }    
+// #endif
     MAKE_STD_ZVAL(string);
     MAKE_STD_ZVAL(pattern);    
+    
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|zzddd", &pattern, &string, &cost_ins, &cost_rep, &cost_del) == FAILURE) {
         RETURN_NULL();
     }
 
     levenshtein = new Levenshtein();
 
-    levenshtein_object *obj = (levenshtein_object *) zend_object_store_get_object(object TSRMLS_CC);
+    levenshtein_object *obj = Z_LEVENSHTEINOBJ_P(object);
+    // levenshtein_object *obj = (levenshtein_object *) zend_object_store_get_object(object TSRMLS_CC);
+
+    obj->levenshtein = levenshtein;
+
     storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
     costs = ZEND_READ_PROPERTY(levenshtein_ce, object, "costs");
-
     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "pattern", val);
     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "path", val);
     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "blocks", val);
@@ -374,23 +485,6 @@ PHP_METHOD (Levenshtein, __construct)
     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "lv", val);
     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "match_map", val);
 
-    // MAKE_STD_ZVAL(arr);
-    // MAKE_STD_ZVAL(val);
-    // object_init_ex(arr, storage_ce);
-    // array_init(val);
-    // zend_update_property(storage_ce, arr, "path", sizeof("path") - 1, val TSRMLS_DC);
-    // MAKE_STD_ZVAL(val);
-    // array_init(val);
-    // zend_update_property(storage_ce, arr, "blocks", sizeof("blocks") - 1, val TSRMLS_DC);
-    // MAKE_STD_ZVAL(val);
-    // array_init(val);
-    // zend_update_property(storage_ce, arr, "searches", sizeof("searches") - 1, val TSRMLS_DC);
-    // MAKE_STD_ZVAL(val);
-    // array_init(val);
-    // zend_update_property(storage_ce, arr, "lv", sizeof("lv") - 1, val TSRMLS_DC);
-    // MAKE_STD_ZVAL(val);
-    // array_init(val);
-    // zend_update_property(storage_ce, arr, "match_map", sizeof("match_map") - 1, val TSRMLS_DC);
     zend_update_property_null(storage_ce, arr, "distance", sizeof("distance") - 1 TSRMLS_DC);
     zend_update_property_double(storage_ce, arr, "cost_ins", sizeof("cost_ins") - 1, cost_ins  TSRMLS_DC);
     zend_update_property_double(storage_ce, arr, "cost_del", sizeof("cost_del") - 1, cost_del  TSRMLS_DC);
@@ -413,57 +507,6 @@ PHP_METHOD (Levenshtein, __construct)
         levenshtein->setPattern(Z_ARRVAL_P(pattern));
         levenshtein_update_pattern(levenshtein, object);
     }
-
-    obj->levenshtein = levenshtein;
-#else
-    string = (zval*)ecalloc(1, sizeof(zval));
-    pattern = (zval*)ecalloc(1, sizeof(zval));
-    if (zend_parse_parameters(ZEND_NUM_ARGS(), "|zzddd", &pattern, &string, &cost_ins, &cost_rep, &cost_del) == FAILURE) {
-        RETURN_NULL();
-    }
-
-    levenshtein = new Levenshtein();    
-
-    levenshtein_object *obj = Z_LEVENSHTEINOBJ_P(object);
-
-    obj->levenshtein = levenshtein;
-
-    storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
-    costs = ZEND_READ_PROPERTY(levenshtein_ce, object, "costs");
-
-    FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "pattern", val);
-    FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "path", val);
-    FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "blocks", val);
-    FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "searches", val);
-    FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "lv", val);
-    FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "match_map", val);
-
-    zend_update_property_null(storage_ce, arr, "distance", sizeof("distance") - 1);
-    zend_update_property_double(storage_ce, arr, "cost_ins", sizeof("cost_ins") - 1, cost_ins);
-    zend_update_property_double(storage_ce, arr, "cost_del", sizeof("cost_del") - 1, cost_del);
-    zend_update_property_double(storage_ce, arr, "cost_rep", sizeof("cost_rep") - 1, cost_rep);
-    
-    zend_update_property(levenshtein_ce, object, "storage", sizeof("storage") - 1, arr);
-    
-    arr = NULL;
-    INIT_ZOBJECT(costs_ce, arr);
-    zend_update_property_double(costs_ce, arr, "insert", sizeof("insert") - 1, cost_ins);
-    zend_update_property_double(costs_ce, arr, "delete", sizeof("delete") - 1, cost_del);
-    zend_update_property_double(costs_ce, arr, "replace", sizeof("replace") - 1, cost_rep);
-    zend_update_property(levenshtein_ce, object, "costs", sizeof("costs") - 1, arr);
-
-    if (Z_TYPE_P(string) == IS_STRING) {
-        zend_update_property(levenshtein_ce, object, "string", sizeof("string") - 1, string);
-    }
-
-    if (Z_TYPE_P(pattern) == IS_STRING) {
-        levenshtein->setPattern(Z_STRVAL_P(pattern));
-        levenshtein_update_pattern(levenshtein, object);
-    } else if (Z_TYPE_P(pattern) == IS_ARRAY) {
-        levenshtein->setPattern(Z_ARRVAL_P(pattern));
-        levenshtein_update_pattern(levenshtein, object);
-    }    
-#endif
     
 }
 
@@ -569,12 +612,13 @@ void levenshtein_update_pattern(Levenshtein *levenshtein, zval *object) {
 
     zval *storage, *prop, *pattern;
 #if ZEND_MODULE_API_NO < 20151012
+    printf("%s\n", "537");
     storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
     pattern = levenshtein->getPattern();
     zend_update_property(levenshtein_ce, object, "pattern", sizeof("pattern") - 1, pattern TSRMLS_CC);
     zend_update_property(storage_ce, storage, "pattern", sizeof("pattern") - 1, pattern TSRMLS_CC);
 #else
-    zval rv;
+    printf("%s\n", "579");
     storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
     pattern = levenshtein->getPattern();
     zend_update_property(levenshtein_ce, object, "pattern", sizeof("pattern") - 1, pattern);
@@ -587,6 +631,7 @@ void levenshtein_reset_pattern(Levenshtein *levenshtein, zval *object) {
 
     zval *storage, *prop, *pattern;
 
+    printf("%s\n", "592");
     storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
     pattern = ZEND_READ_PROPERTY(storage_ce, storage, "pattern");
 
@@ -597,6 +642,7 @@ void levenshtein_reset_pattern(Levenshtein *levenshtein, zval *object) {
             levenshtein->setPattern(Z_ARRVAL_P(pattern), 0);
             break;
     }
+    printf("%s\n", "602");
     pattern = ZEND_READ_PROPERTY(storage_ce, storage, "pattern");
     switch (Z_TYPE_P(pattern)) {
 
@@ -649,6 +695,7 @@ void levenshtein_reset_data_from_storage(Levenshtein *levenshtein, zval *object)
     zval *storage, *prop, *val, *costs;
     char flush = 0;
     
+    printf("%s\n", "656");
     storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
     val = ZEND_READ_PROPERTY(storage_ce, storage, "distance");
     if (Z_TYPE_P(val) == IS_DOUBLE) {
@@ -659,6 +706,7 @@ void levenshtein_reset_data_from_storage(Levenshtein *levenshtein, zval *object)
         flush = 1;
     }
 
+    printf("%s\n", "667");
     val = ZEND_READ_PROPERTY(storage_ce, storage, "cost_ins");
 
     if (Z_TYPE_P(val) == IS_DOUBLE) {
@@ -669,6 +717,7 @@ void levenshtein_reset_data_from_storage(Levenshtein *levenshtein, zval *object)
         flush = 1;
     }
 
+    printf("%s\n", "677");
     val = ZEND_READ_PROPERTY(storage_ce, storage, "cost_rep");
 
     if (Z_TYPE_P(val) == IS_DOUBLE) {
@@ -679,6 +728,7 @@ void levenshtein_reset_data_from_storage(Levenshtein *levenshtein, zval *object)
         flush = 1;
     }
 
+    printf("%s\n", "689");
     val = ZEND_READ_PROPERTY(storage_ce, storage, "cost_del");
 
     if (Z_TYPE_P(val) == IS_DOUBLE) {
@@ -689,6 +739,7 @@ void levenshtein_reset_data_from_storage(Levenshtein *levenshtein, zval *object)
         flush = 1;
     }
 
+    printf("%s\n", "700");
     costs = ZEND_READ_PROPERTY(levenshtein_ce, object, "costs");
     val = ZEND_READ_PROPERTY(costs_ce, costs, "insert");
 
@@ -706,6 +757,7 @@ void levenshtein_reset_data_from_storage(Levenshtein *levenshtein, zval *object)
         flush = 1;
     }
 
+    printf("%s\n", "717");
     val = ZEND_READ_PROPERTY(costs_ce, costs, "replace");
 
     Z2DOUBLE(val);
@@ -723,6 +775,7 @@ void levenshtein_reset_data_from_storage(Levenshtein *levenshtein, zval *object)
         flush = 1;
     }
 
+    printf("%s\n", "735");
     val = ZEND_READ_PROPERTY(costs_ce, costs, "replace");
 
     Z2DOUBLE(val);
@@ -741,6 +794,7 @@ void levenshtein_reset_data_from_storage(Levenshtein *levenshtein, zval *object)
     }
     
     if (!flush) {
+    printf("%s\n", "754");
         levenshtein->setLV(ZEND_READ_PROPERTY(storage_ce, storage, "lv"));
         levenshtein->setMap(ZEND_READ_PROPERTY(storage_ce, storage, "match_map"));
         levenshtein->setPath(ZEND_READ_PROPERTY(storage_ce, storage, "path"));
@@ -754,6 +808,7 @@ void levenshtein_flush_processed(Levenshtein *levenshtein, zval *object) {
     levenshtein->flushProcessed();
 
 #if ZEND_MODULE_API_NO < 20151012
+    printf("%s\n", "769");
     zval *storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
 
     zend_update_property_null(storage_ce, storage, "path", sizeof("path") - 1 TSRMLS_DC);
@@ -763,6 +818,8 @@ void levenshtein_flush_processed(Levenshtein *levenshtein, zval *object) {
     zend_update_property_null(storage_ce, storage, "match_map", sizeof("match_map") - 1 TSRMLS_DC);
     zend_update_property_null(storage_ce, storage, "distance", sizeof("distance") - 1 TSRMLS_DC);
 #else    
+
+    printf("%s\n", "780");
     zval *storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
 
     zend_update_property_null(storage_ce, storage, "path", sizeof("path") - 1);
@@ -777,9 +834,11 @@ void levenshtein_flush_processed(Levenshtein *levenshtein, zval *object) {
 
 void update_storage_property(Levenshtein *levenshtein, zval *object, char *property, zval *value) {
 #if ZEND_MODULE_API_NO < 20151012
+    printf("%s\n", "795");
     zval *storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");    
     zend_update_property(storage_ce, storage, property, strlen(property), value TSRMLS_DC);
 #else    
+    printf("%s\n", "799");
     zval *storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");    
     zend_update_property(storage_ce, storage, property, strlen(property), value);
 #endif    
@@ -791,6 +850,7 @@ zval *levenshtein_get_distance(Levenshtein *levenshtein, zval *object) {
 #if ZEND_MODULE_API_NO < 20151012
     MAKE_STD_ZVAL(ret);
     zval *storage, *prop, *val;
+    printf("%s\n", "811");
     string = ZEND_READ_PROPERTY(levenshtein_ce, object, "string");
     storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
     
@@ -811,11 +871,17 @@ zval *levenshtein_get_distance(Levenshtein *levenshtein, zval *object) {
     ret = (zval*)ecalloc(1, sizeof(zval));
     ZVAL_NULL(ret);
     zval *storage, *prop, *val;
-    zval rv;
+    
+    printf("%s\n", "833");
+    printf("OBJ TYPE: %d\n", Z_TYPE_P(object));
     string = ZEND_READ_PROPERTY(levenshtein_ce, object, "string");
+    
+    // string = zend_read_property(levenshtein_ce, object, "string", sizeof("string") - 1, 1, rv);
     // printf("GET DIST FOR: `%s`\n", Z_STRVAL_P(string));
+    printf("%s\n", "836");
     storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
     
+    printf("%s\n", "837");
     if (Z_TYPE_P(string) == IS_NULL) {
 
         zend_update_property(storage_ce, storage, "distance", sizeof("distance") - 1, ret TSRMLS_CC);
@@ -847,13 +913,15 @@ zval *levenshtein_get_path(Levenshtein *levenshtein, zval *object) {
     MAKE_STD_ZVAL(blocks);
     MAKE_STD_ZVAL(searches);
     zval *storage, *prop, *val;
+    printf("%s\n", "869");
     storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
 #else
     ret = (zval*)ecalloc(1, sizeof(zval));
     blocks = (zval*)ecalloc(1, sizeof(zval));
     searches = (zval*)ecalloc(1, sizeof(zval));
     zval *storage, *prop, *val;
-    zval rv;
+
+    printf("%s\n", "877");
     storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
 #endif
     
@@ -1003,9 +1071,9 @@ zval *levenshtein__get(Levenshtein *levenshtein, zval *object, std::string key){
         ret = (zval*)ecalloc(1, sizeof(zval));
         ZVAL_NULL(ret);
     }
+
     levenshtein->flushProcessed();
 
-    // printf("__get: end:  %s\n", key.c_str());
     return ret;
 }
 
@@ -1028,7 +1096,6 @@ void levenshtein__set(Levenshtein *levenshtein, zval *object, std::string key, z
     } else if (key.compare("string") == 0){
                 char buffer[32];
         switch(Z_TYPE_P(value)){
-
 #if ZEND_MODULE_API_NO < 20151012            
             case IS_BOOL:
                 levenshtein->setString(Z_BVAL_P(value)?(char*)"TRUE":(char*)"FALSE");
@@ -1106,10 +1173,10 @@ PHP_METHOD (Levenshtein, __get) {
     // printf("GET %s\n", key);
 #endif    
     
-    // printf("__GET: %s\n", stdKey.c_str());  
+    printf("__GET: %s\n", stdKey.c_str());  
     *return_value = *levenshtein__get(levenshtein, object, stdKey);
     zval_copy_ctor(return_value);
-    // printf("END __get\n");
+    printf("__get: END:  %s\n", stdKey.c_str());
 }
 
 PHP_METHOD (Levenshtein, __set) {
@@ -1119,6 +1186,7 @@ PHP_METHOD (Levenshtein, __set) {
 #if ZEND_MODULE_API_NO < 20151012
     levenshtein_object *obj = (levenshtein_object *) zend_object_store_get_object(object TSRMLS_CC);
     levenshtein = obj->levenshtein;
+    printf("lv = null : %d\n", levenshtein == NULL);
     if (levenshtein == NULL)
         zend_throw_exception(zend_exception_get_default(TSRMLS_C), "Levenshtein object not initialized", 0 TSRMLS_CC);
     char *key;
@@ -1137,14 +1205,14 @@ PHP_METHOD (Levenshtein, __set) {
     zend_string *zKey;
     zval *val;
     val = (zval*)ecalloc(1, sizeof(zval));
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "Sz", &zKey, &val) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "Sz", &zKey, &val) == FAILURE) {
         RETURN_NULL();
     }
     sKey.assign((*zKey).val, (*zKey).len);
 #endif
-    // printf("__set: %s\n", sKey.c_str());
+    printf("__set: %s\n", sKey.c_str());
     levenshtein__set(levenshtein, object, sKey, val);
-    // printf("__set: END:  %s\n", sKey.c_str());
+    printf("__set: END:  %s\n", sKey.c_str());
 }
 
 PHP_METHOD (Levenshtein, __destruct) {

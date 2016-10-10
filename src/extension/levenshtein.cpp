@@ -36,12 +36,11 @@ void Levenshtein::checkVals(){
 }
 
 void Levenshtein::flushProcessed() {
-
     this->clearLV();
     this->clearMap();
     this->clearPath();
     this->distance = 0;
-    // printf("CLEAR ALL: blocks size: %d\n", this->blocks.size());
+    
 }
 
 void Levenshtein::setPattern(HashTable *pattern) {
@@ -95,7 +94,7 @@ void Levenshtein::setPattern(HashTable *pattern, char flush_if_changed) {
 
 
 void Levenshtein::setString(char *str) {
-    // printf("97: `%d`\n", this ==  NULL);
+    printf("97: `%d`\n", this ==  NULL);
     // if(this->string.empty()){
     //     printf("%s\n", "104: string empty" );
     // } else {
