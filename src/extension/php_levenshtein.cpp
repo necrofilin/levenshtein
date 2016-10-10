@@ -8,12 +8,11 @@ zend_object_handlers costs_object_handlers;
 zend_class_entry *levenshtein_ce;
 zend_class_entry *storage_ce;
 zend_class_entry *costs_ce;
+
 /* #############################   Method declaration ########################################### */
 PHP_METHOD (Levenshtein, __construct);
 
 PHP_METHOD (Levenshtein, __destruct);
-
-PHP_METHOD (Levenshtein, getStorage);
 
 PHP_METHOD (Levenshtein, __get);
 
@@ -31,6 +30,7 @@ void levenshtein_store_dtor(void *object, zend_object_handle handle TSRMLS_DC) {
     ALLOC_HASHTABLE(obj->std.properties);
     zend_hash_init(obj->std.properties, 0, NULL, NULL, 0);
 }
+
 void levenshtein_free_storage(void *object TSRMLS_DC) {
 
     levenshtein_object *obj = (levenshtein_object *) object;
@@ -83,24 +83,15 @@ zend_object_value levenshtein_create_handler(zend_class_entry *type TSRMLS_DC) {
 HashTable *levenshtein_object_get_properties(zval *object TSRMLS_DC){
     
     HashTable *props = zend_std_get_properties(object TSRMLS_DC);
-    // int i;
-    // zval *data;
-    // zval *key;
-    // MAKE_STD_ZVAL(data);
-    // MAKE_STD_ZVAL(key);
-    // for (i = 0, zend_hash_internal_pointer_reset(props);
-    //      zend_hash_get_current_data(props, (void **) &data) == SUCCESS; ++i, zend_hash_move_forward(props)) {
-    //     zend_hash_get_current_key_zval(props, key);
-    //     printf("prop_get: {%s} : %d\n", Z_STRVAL_P(key), Z_TYPE_P(data));
-    // }
-
     Levenshtein *levenshtein;
     levenshtein_object *obj = (levenshtein_object *) zend_object_store_get_object(object TSRMLS_CC);
     levenshtein = obj->levenshtein;
 
     zval *val;
-    val = levenshtein_get_distance(levenshtein, object);
-    zend_hash_add(props, "distance", sizeof("distance"), &val, sizeof(zval*), NULL);
+    ADD_PROPERTY(props, levenshtein, object, distance);
+    // MAKE_STD_ZVAL(val);
+    // val = levenshtein_get_distance(levenshtein, object);
+    // zend_hash_add(props, "distance", sizeof("distance"), &val, sizeof(zval*), NULL);
     MAKE_STD_ZVAL(val);
     val = levenshtein_get_path(levenshtein, object);
     zend_hash_add(props, "path", sizeof("path"), &val, sizeof(zval*), NULL);
@@ -114,7 +105,6 @@ HashTable *levenshtein_object_get_properties(zval *object TSRMLS_DC){
 }
 
 HashTable *levenshtein_object_get_debug_info(zval *object, int *is_temp TSRMLS_DC){
-    // printf("%s\n", "levenshtein_object_get_debug_info");    
     HashTable *props = zend_std_get_debug_info(object, is_temp TSRMLS_DC);
     return props;
 }

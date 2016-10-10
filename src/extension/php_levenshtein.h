@@ -96,4 +96,12 @@ zval *levenshtein_get_path(Levenshtein *levenshtein, zval *object);
 zval *levenshtein_get_blocks(Levenshtein *levenshtein, zval *object);
 zval *levenshtein_get_searches(Levenshtein *levenshtein, zval *object);
 
+#define LEVENSHTEIN_GET_FN(name) \
+    levenshtein_get_##name
+
+
+#define ADD_PROPERTY(props, levenshtein, object, name ) \
+    zval *val= LEVENSHTEIN_GET_FN(name)(levenshtein, object)
+    zend_hash_add(props, name, sizeof(name), &val, sizeof(zval*), NULL)
+
 #endif
