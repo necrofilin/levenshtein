@@ -61,17 +61,19 @@ void Levenshtein::setPattern(HashTable *pattern, char flush_if_changed) {
     char keep = 1;
     char *pat_el;
     int pat_len;
-#if ZEND_MODULE_API_NO < 20151012
-    for (i = 0, zend_hash_internal_pointer_reset(pattern); zend_hash_get_current_data(pattern, (void **) &data) == SUCCESS; ++i, zend_hash_move_forward(pattern)) {
+    for (i = 0, zend_hash_internal_pointer_reset(pattern); ZEND_HASH_HAS_MORE_ELEMENTS(pattern) == SUCCESS; ++i, zend_hash_move_forward(pattern)) {
+        ZEND_HASH_GET_CURRENT_DATA(pattern, &data);
+// #if ZEND_MODULE_API_NO < 20151012
+//     for (i = 0, zend_hash_internal_pointer_reset(pattern); zend_hash_get_current_data(pattern, (void **) &data) == SUCCESS; ++i, zend_hash_move_forward(pattern)) {
 
-#else
-    zval *data_p;
+// #else
+//     zval *data_p;
     
-    for (i = 0, zend_hash_internal_pointer_reset(pattern); zend_hash_has_more_elements(pattern) == SUCCESS; ++i, zend_hash_move_forward(pattern)) {
+//     for (i = 0, zend_hash_internal_pointer_reset(pattern); zend_hash_has_more_elements(pattern) == SUCCESS; ++i, zend_hash_move_forward(pattern)) {
 
-        data_p = zend_hash_get_current_data(pattern);
-        data = &data_p;
-#endif
+//         data_p = zend_hash_get_current_data(pattern);
+//         data = &data_p;
+// #endif
 
         pat_el = Z_STRVAL_P(*data);
         pat_len = Z_STRLEN_P(*data);
@@ -613,44 +615,51 @@ void Levenshtein::setLV(zval *lv) {
     //this->lv = std::vector< std::vector<double> >(len +1);
     this->lv.resize(len + 1, std::vector<double>(0));
     zval **row, **cell;
+
     int j, row_len;
-#if ZEND_MODULE_API_NO < 20151012
-    for (i = 0, zend_hash_internal_pointer_reset(ht);
-         zend_hash_get_current_data(ht, (void **) &row) == SUCCESS;
-         ++i, zend_hash_move_forward(ht)
-            ) {
 
-#else
-    zval *row_p;
-    for (i = 0, zend_hash_internal_pointer_reset(ht);
-         zend_hash_has_more_elements(ht) == SUCCESS;
-         ++i, zend_hash_move_forward(ht)
-            ) {
+    for (i = 0, zend_hash_internal_pointer_reset(ht); ZEND_HASH_HAS_MORE_ELEMENTS(ht) == SUCCESS; ++i, zend_hash_move_forward(ht)) {
+        ZEND_HASH_GET_CURRENT_DATA(ht, &row);
+// #if ZEND_MODULE_API_NO < 20151012
+//     for (i = 0, zend_hash_internal_pointer_reset(ht);
+//          zend_hash_get_current_data(ht, (void **) &row) == SUCCESS;
+//          ++i, zend_hash_move_forward(ht)
+//             ) {
 
-        row_p = zend_hash_get_current_data(ht);
-        row = &row_p;
-#endif
+// #else
+//     zval *row_p;
+//     for (i = 0, zend_hash_internal_pointer_reset(ht);
+//          zend_hash_has_more_elements(ht) == SUCCESS;
+//          ++i, zend_hash_move_forward(ht)
+//             ) {
+
+//         row_p = zend_hash_get_current_data(ht);
+//         row = &row_p;
+// #endif
         if (Z_TYPE_P(*row) == IS_ARRAY) {
 
             row_ht = Z_ARRVAL_P(*row);
             row_len = zend_hash_num_elements(row_ht);
             this->lv[i].resize(row_len + 1, 0);
-#if ZEND_MODULE_API_NO < 20151012
-            for (j = 0, zend_hash_internal_pointer_reset(row_ht);
-                 zend_hash_get_current_data(row_ht, (void **) &cell) == SUCCESS;
-                 ++j, zend_hash_move_forward(row_ht)
-                    ) {
 
-#else
-        zval *cell_p;
-            for (j = 0, zend_hash_internal_pointer_reset(row_ht);
-                 zend_hash_has_more_elements(row_ht) == SUCCESS;
-                 ++j, zend_hash_move_forward(row_ht)
-                    ) {
+            for (j = 0, zend_hash_internal_pointer_reset(row_ht); ZEND_HASH_HAS_MORE_ELEMENTS(row_ht) == SUCCESS; ++j, zend_hash_move_forward(row_ht)) {
+                ZEND_HASH_GET_CURRENT_DATA(row_ht, &cell);
+// #if ZEND_MODULE_API_NO < 20151012
+//             for (j = 0, zend_hash_internal_pointer_reset(row_ht);
+//                  zend_hash_get_current_data(row_ht, (void **) &cell) == SUCCESS;
+//                  ++j, zend_hash_move_forward(row_ht)
+//                     ) {
 
-                cell_p = zend_hash_get_current_data(row_ht);
-                cell = &cell_p;
-#endif
+// #else
+//         zval *cell_p;
+//             for (j = 0, zend_hash_internal_pointer_reset(row_ht);
+//                  zend_hash_has_more_elements(row_ht) == SUCCESS;
+//                  ++j, zend_hash_move_forward(row_ht)
+//                     ) {
+
+//                 cell_p = zend_hash_get_current_data(row_ht);
+//                 cell = &cell_p;
+// #endif
                 this->lv[i][j] = Z_DVAL_P(*cell);
             }
         } else {
@@ -677,22 +686,27 @@ void Levenshtein::setMap(zval *map) {
     this->match_map.resize(len + 1, std::vector<char>(this->n + 1));
     zval **row, **cell;
     int j, row_len;
-#if ZEND_MODULE_API_NO < 20151012
     for (i = 0, zend_hash_internal_pointer_reset(ht);
-         zend_hash_get_current_data(ht, (void **) &row) == SUCCESS;
+         ZEND_HASH_HAS_MORE_ELEMENTS(ht) == SUCCESS;
          ++i, zend_hash_move_forward(ht)
             ) {
+        ZEND_HASH_GET_CURRENT_DATA(ht, &row);
+// #if ZEND_MODULE_API_NO < 20151012
+//     for (i = 0, zend_hash_internal_pointer_reset(ht);
+//          zend_hash_get_current_data(ht, (void **) &row) == SUCCESS;
+//          ++i, zend_hash_move_forward(ht)
+//             ) {
 
-#else
-        zval *row_p;
-    for (i = 0, zend_hash_internal_pointer_reset(ht);
-         zend_hash_has_more_elements(ht) == SUCCESS;
-         ++i, zend_hash_move_forward(ht)
-            ) {
+// #else
+//         zval *row_p;
+//     for (i = 0, zend_hash_internal_pointer_reset(ht);
+//          zend_hash_has_more_elements(ht) == SUCCESS;
+//          ++i, zend_hash_move_forward(ht)
+//             ) {
 
-        row_p = zend_hash_get_current_data(ht);
-        row = &row_p;
-#endif
+//         row_p = zend_hash_get_current_data(ht);
+//         row = &row_p;
+// #endif
         if (Z_TYPE_P(*row) == IS_ARRAY) {
 
             row_ht = Z_ARRVAL_P(*row);

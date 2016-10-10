@@ -827,7 +827,7 @@ PHP_METHOD (Levenshtein, __call) {
         if(zend_hash_num_elements(zArguments) > 0) {
             zend_hash_internal_pointer_reset(zArguments);
             zval *value;
-            ZEND_HASH_GET_CURRENT_DATA(zArguments, value);
+            ZEND_HASH_GET_CURRENT_DATA(zArguments, &value);
 
             levenshtein__set(levenshtein, object, param, value);
         }
