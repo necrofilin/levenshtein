@@ -62,8 +62,7 @@ void Levenshtein::setPattern(HashTable *pattern, char flush_if_changed) {
     char *pat_el;
     int pat_len;
 #if ZEND_MODULE_API_NO < 20151012
-    for (i = 0, zend_hash_internal_pointer_reset(pattern);
-         zend_hash_get_current_data(pattern, (void **) &data) == SUCCESS; ++i, zend_hash_move_forward(pattern)) {
+    for (i = 0, zend_hash_internal_pointer_reset(pattern); zend_hash_get_current_data(pattern, (void **) &data) == SUCCESS; ++i, zend_hash_move_forward(pattern)) {
 
 #else
     zval *data_p;

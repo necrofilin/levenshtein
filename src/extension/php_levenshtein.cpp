@@ -20,6 +20,8 @@ PHP_METHOD (Levenshtein, __set);
 
 PHP_METHOD (Levenshtein, __call);
 /* ############################################################################################## */
+
+
 #ifdef ZEND_ENGINE_2
 
 void levenshtein_store_dtor(void *object, zend_object_handle handle TSRMLS_DC) 
@@ -40,83 +42,34 @@ void levenshtein_free_storage(void *object TSRMLS_DC)
     FREE_HASHTABLE(obj->std.properties);
     efree(obj);
 }
+#endif
 
-// zend_object_value storage_create_handler(zend_class_entry *type TSRMLS_DC) 
-FN_OBJECT_CREATE_HANDLER(storage)
+static inline levenshtein_object *levenshtein_object_from_obj(zend_object *obj)
 {
-    zend_object_value retval;
-    storage_object *obj = (storage_object *) emalloc(sizeof(storage_object));
-    memset(obj, 0, sizeof(storage_object));
-
-    INIT_OBJECT_CREATE_HANDLER(obj, type, NULL, NULL, NULL, storage_object_handlers, &retval);
-
-    // zend_object_std_init(&obj->std, type TSRMLS_CC);
-
-    // ALLOC_HASHTABLE(obj->std.properties);
-    // zend_hash_init(obj->std.properties, 0, NULL, ZVAL_PTR_DTOR, 0);
-    // object_properties_init(&obj->std, type);
-    // retval.handle = zend_objects_store_put(obj, NULL, NULL, NULL TSRMLS_CC);
-    
-    // retval.handlers = &storage_object_handlers;
-    return INIT_OBJECT_CREATE_HANDLER_RETURN(obj, retval);
-    // return retval;
-}
-
-// zend_object_value costs_create_handler(zend_class_entry *type TSRMLS_DC) 
-FN_OBJECT_CREATE_HANDLER(costs)
-{
-    zend_object_value retval;
-    costs_object *obj = (costs_object *) emalloc(sizeof(costs_object));
-    memset(obj, 0, sizeof(costs_object));
-    INIT_OBJECT_CREATE_HANDLER(obj, type, NULL, NULL, NULL, costs_object_handlers, &retval);
-
-    // zend_object_std_init(&obj->std, type TSRMLS_CC);
-    // ALLOC_HASHTABLE(obj->std.properties);
-    // zend_hash_init(obj->std.properties, 0, NULL, ZVAL_PTR_DTOR, 0);
-    // object_properties_init(&obj->std, type);
-    // retval.handle = zend_objects_store_put(obj, NULL, NULL, NULL TSRMLS_CC);
-    // retval.handlers = &costs_object_handlers;
-    
-    return INIT_OBJECT_CREATE_HANDLER_RETURN(obj, retval);
-}
-// zend_object_value levenshtein_create_handler(zend_class_entry *type TSRMLS_DC) 
-FN_OBJECT_CREATE_HANDLER(levenshtein)
-{
-    zend_object_value retval;
-    levenshtein_object *obj = (levenshtein_object *) emalloc(sizeof(levenshtein_object));
-    memset(obj, 0, sizeof(levenshtein_object));
-    INIT_OBJECT_CREATE_HANDLER(obj, type, levenshtein_store_dtor, levenshtein_free_storage, NULL, levenshtein_object_handlers, &retval);
-    
-    // zend_object_std_init(&obj->std, type TSRMLS_CC);
-    // ALLOC_HASHTABLE(obj->std.properties);
-    // zend_hash_init(obj->std.properties, 0, NULL, ZVAL_PTR_DTOR, 0);
-    // object_properties_init(&obj->std, type);
-    // retval.handlers = &levenshtein_object_handlers;
-    // retval.handle = zend_objects_store_put(obj, levenshtein_store_dtor, levenshtein_free_storage, NULL TSRMLS_CC);
-    
-    return INIT_OBJECT_CREATE_HANDLER_RETURN(obj, retval);
+    return (levenshtein_object*)((char*)(obj) - XtOffsetOf(levenshtein_object, std));
 }
 
 HashTable *levenshtein_object_get_properties(zval *object TSRMLS_DC)
 {    
     HashTable *props = zend_std_get_properties(object TSRMLS_DC);
-    Levenshtein *levenshtein;
-    levenshtein_object *obj = (levenshtein_object *) zend_object_store_get_object(object TSRMLS_CC);
-    levenshtein = obj->levenshtein;
+    levenshtein_object *obj = Z_LEVENSHTEINOBJ_P(object);
+    Levenshtein *levenshtein = obj->levenshtein;
 
     zval *val;
     MAKE_STD_ZVAL(val);
     val = levenshtein_get_distance(levenshtein, object);
-    zend_hash_add(props, "distance", sizeof("distance"), &val, sizeof(zval*), NULL);
+    ZEND_HASH_ADD(props, "distance", &val);
     MAKE_STD_ZVAL(val);
     val = levenshtein_get_path(levenshtein, object);
-    zend_hash_add(props, "path", sizeof("path"), &val, sizeof(zval*), NULL);
+    ZEND_HASH_ADD(props, "path", &val);
     MAKE_STD_ZVAL(val);
     val = levenshtein_get_searches(levenshtein, object);
-    zend_hash_add(props, "searches", sizeof("searches"), &val, sizeof(zval*), NULL);
+    ZEND_HASH_ADD(props, "searches", &val);
     MAKE_STD_ZVAL(val);
     val = levenshtein_get_blocks(levenshtein, object);
-    zend_hash_add(props, "blocks", sizeof("blocks"), &val, sizeof(zval*), NULL);
+    ZEND_HASH_ADD(props, "blocks", &val);
+
+
     return props;
 }
 
@@ -126,79 +79,34 @@ HashTable *levenshtein_object_get_debug_info(zval *object, int *is_temp TSRMLS_D
     return props;
 }
 
-#endif
-
-#ifdef ZEND_ENGINE_3
-// zend_object *storage_create_handler(zend_class_entry *type) 
 FN_OBJECT_CREATE_HANDLER(storage)
 {
-    
-    storage_object *obj = (storage_object *) emalloc(sizeof(storage_object));
+    OBJECT_CREATE_HANDLER_RETURN_TYPE() retval;
+    storage_object *obj = (storage_object *) ecalloc(1, OBJECT_SIZE(storage_object, type));
     memset(obj, 0, sizeof(storage_object));
-
     INIT_OBJECT_CREATE_HANDLER(obj, type, NULL, NULL, NULL, storage_object_handlers, &retval);
-
-    // storage_object *intern;
-    // intern = (storage_object *) ecalloc(1, sizeof(storage_object) + zend_object_properties_size(type));
-    // zend_object_std_init(&intern->std, type);
-    // object_properties_init(&intern->std, type);
-    // intern->std.handlers = &storage_object_handlers;
-    // return &intern->std;
     return INIT_OBJECT_CREATE_HANDLER_RETURN(obj, retval);
 }
 
-// zend_object *costs_create_handler(zend_class_entry *type ) 
 FN_OBJECT_CREATE_HANDLER(costs)
 {
-    costs_object *intern;
-    intern = (costs_object *) ecalloc(1, sizeof(costs_object) + zend_object_properties_size(type));
-    zend_object_std_init(&intern->std, type);
-    object_properties_init(&intern->std, type);
-    intern->std.handlers = &costs_object_handlers;
-    return &intern->std;
-}
-
-zend_object *levenshtein_create_handler(zend_class_entry *type) 
-{
-    levenshtein_object *intern;
-    intern = (levenshtein_object *) ecalloc(1, sizeof(levenshtein_object) + zend_object_properties_size(type));
-    zend_object_std_init(&intern->std, type);
-    object_properties_init(&intern->std, type);
-    intern->std.handlers = &levenshtein_object_handlers;
-    return &intern->std;
-}
-
-HashTable *levenshtein_object_get_properties(zval *object)
-{    
-    HashTable *props = zend_std_get_properties(object);
-
-    Levenshtein *levenshtein = Z_LEVENSHTEINOBJ_P(object)->levenshtein;
-
-    // zval *val = (zval*) ecalloc(1, sizeof(zval));
-    // val = levenshtein_get_distance(levenshtein, object);
-    zend_hash_add(props, ZVAL_FROM_CSTR("distance"), levenshtein_get_distance(levenshtein, object));
-    // val = levenshtein_get_path(levenshtein, object);
-    zend_hash_add(props, ZVAL_FROM_CSTR("path"), levenshtein_get_path(levenshtein, object));
-    // val = levenshtein_get_searches(levenshtein, object);
-    zend_hash_add(props, ZVAL_FROM_CSTR("searches"), levenshtein_get_searches(levenshtein, object));
-    // val = levenshtein_get_blocks(levenshtein, object);
-    zend_hash_add(props, ZVAL_FROM_CSTR("blocks"), levenshtein_get_blocks(levenshtein, object));
-
-    return props;
-}
-
-HashTable *levenshtein_object_get_debug_info(zval *object, int *is_temp){
-    HashTable *props = zend_std_get_debug_info(object, is_temp);
+    OBJECT_CREATE_HANDLER_RETURN_TYPE() retval;
+    costs_object *obj = (costs_object *) ecalloc(1, OBJECT_SIZE(costs_object, type));
+    memset(obj, 0, sizeof(costs_object));
+    INIT_OBJECT_CREATE_HANDLER(obj, type, NULL, NULL, NULL, costs_object_handlers, &retval);
     
-    return props;
+    return INIT_OBJECT_CREATE_HANDLER_RETURN(obj, retval);
 }
 
-static inline levenshtein_object *levenshtein_object_from_obj(zend_object *obj)
+FN_OBJECT_CREATE_HANDLER(levenshtein)
 {
-    return (levenshtein_object*)((char*)(obj) - XtOffsetOf(levenshtein_object, std));
+    OBJECT_CREATE_HANDLER_RETURN_TYPE() retval;
+    levenshtein_object *obj = (levenshtein_object *) ecalloc(1, OBJECT_SIZE(levenshtein_object, type));
+    memset(obj, 0, sizeof(levenshtein_object));
+    INIT_OBJECT_CREATE_HANDLER(obj, type, levenshtein_store_dtor, levenshtein_free_storage, NULL, levenshtein_object_handlers, &retval);
+    
+    return INIT_OBJECT_CREATE_HANDLER_RETURN(obj, retval);
 }
-
-#endif
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_void, 0, 0, 0)
 ZEND_END_ARG_INFO()

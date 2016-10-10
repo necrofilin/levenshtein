@@ -102,6 +102,8 @@ zval *levenshtein_get_searches(Levenshtein *levenshtein, zval *object);
 
 #define FN_OBJECT_CREATE_HANDLER(name) \
     zend_object_value name ## _create_handler(zend_class_entry *type TSRMLS_DC) 
+#define OBJECT_SIZE(object_type, class_entry) \
+    sizeof(object_type)
 
 #define INIT_OBJECT_CREATE_HANDLER(obj, class_entry, dtor, storage, clone, handlers_p, retval) \
     {\
@@ -116,6 +118,8 @@ zval *levenshtein_get_searches(Levenshtein *levenshtein, zval *object);
     }
 #define INIT_OBJECT_CREATE_HANDLER_RETURN(obj, retval) \
     retval
+
+#define OBJECT_CREATE_HANDLER_RETURN_TYPE() zend_object_value
 
 #define MAKE_PERSISTENT_ZVAL(val) MAKE_STD_ZVAL(val)
 
@@ -139,19 +143,30 @@ zval *levenshtein_get_searches(Levenshtein *levenshtein, zval *object);
 #define ZVAL_STRING_EX(val, str) \
         ZVAL_STRING(prop, "blocks", 1);
 
+#define ZEND_HASH_ADD(ht, property, data) \
+        zend_hash_add(ht, property, sizeof(property), data, sizeof(zval*), NULL)
+
+#define ZEND_HASH_HAS_MORE_ELEMENTS(ht) \
+    zend_hash_get_current_data(ht, (void**)ecalloc(1, sizeof(zval*)))
+
+#define ZEND_HASH_GET_CURRENT_DATA(ht, data_p) \
+    zend_hash_get_current_data(ht, (void**)data_p)
+
 #else
 
 #define FN_OBJECT_CREATE_HANDLER(name) \
     zend_object* name##_create_handler(zend_class_entry *type) 
+#define OBJECT_SIZE(object_type, class_entry) \
+    sizeof(object_type) + zend_object_properties_size(class_entry)
 
-#define INIT_OBJECT_CREATE_HANDLER(obj, class_entry, dtor, storage, clone, handlers, retval) \
+#define INIT_OBJECT_CREATE_HANDLER(obj, class_entry, dtor, storage, clone, handlers_p, retval) \
     {\
-        zend_object_std_init(&obj->std, class_entry TSRMLS_CC);\
-        \
-        object_properties_init(&obj->std, class_entry);\
-        \
-        obj->std.handlers = &handlers;\
+        zend_object_std_init(&obj->std, class_entry); \
+        object_properties_init(&obj->std, class_entry); \
+        obj->std.handlers = &handlers_p; \
     }
+
+#define OBJECT_CREATE_HANDLER_RETURN_TYPE() zend_object 
 
 #define INIT_OBJECT_CREATE_HANDLER_RETURN(obj, retval) \
     &obj->std
@@ -194,6 +209,16 @@ zval *levenshtein_get_searches(Levenshtein *levenshtein, zval *object);
     
 #define ZVAL_STRING_EX(val, str) \
         ZVAL_STRING(prop, "blocks");
+
+#define ZEND_HASH_ADD(ht, property, data) \
+    zend_hash_add(ht, ZVAL_FROM_CSTR("property"), *data);
+
+#define ZEND_HASH_HAS_MORE_ELEMENTS(ht) \
+    zend_hash_has_more_elements(ht)
+
+#define ZEND_HASH_GET_CURRENT_DATA(ht, data) \
+    *data = zend_hash_get_current_data(ht)
+
 #endif
 
 #endif
