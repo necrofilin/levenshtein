@@ -36,8 +36,9 @@ var_dump($obj->path);
 echo "--------------P = xxxxxx----------\n";
 // var_dump($obj->pattern);
 $obj->pattern = "xxxxxx";
-var_dump($obj->pattern, $obj->string);
-var_dump($obj->distance);
+var_dump($obj);
+// var_dump($obj->pattern, $obj->string);
+// var_dump($obj->distance);
 var_dump($obj->path);
 if(is_numeric($obj->distance)){
 	print 'All ok';

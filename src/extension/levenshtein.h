@@ -53,10 +53,13 @@ public:
     Levenshtein();
 
     void setString(char *str);
+    void setString(zval *value);
 
     zval *getString();
 
     void clearPattern();
+
+    void setPattern(zval *value);
 
     void setPattern(char *pattern);
 
