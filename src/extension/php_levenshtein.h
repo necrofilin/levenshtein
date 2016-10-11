@@ -18,6 +18,8 @@ extern "C" {
 #endif
 }
 
+#include <zend_2_to_3_fix.h>
+
 extern zend_error_handling levenshtein_original_error_handling;
 extern zend_module_entry levenshtein_module_entry;
 extern zend_object_handlers levenshtein_object_handlers;
@@ -43,6 +45,7 @@ extern void Z2DOUBLE(zval *val);
 #include "storage.h"
 #include "costs.h"
 #include "levenshtein.h"
+#include "php_levenshtein.h"
 
 #if ZEND_MODULE_API_NO < 20151012
 struct levenshtein_object {
@@ -59,7 +62,11 @@ struct costs_object {
     zend_object std;
     Costs *costs;
 };
+
+#define Z_LEVENSHTEINOBJ_P(zv) (levenshtein_object *) zend_object_store_get_object(zv TSRMLS_CC)
+
 #else
+
 struct levenshtein_object {
     Levenshtein *levenshtein;
     zend_object std;
@@ -79,8 +86,6 @@ static inline levenshtein_object *levenshtein_object_from_obj(zend_object *obj);
 
 #define Z_LEVENSHTEINOBJ_P(zv) levenshtein_object_from_obj(Z_OBJ_P((zv)))
 
-#define ZVAL_FROM_CSTR(c_str) \
-   zend_string_init(c_str, strlen(c_str), 0)
 
 #endif
 
@@ -95,5 +100,7 @@ zval *levenshtein_get_distance(Levenshtein *levenshtein, zval *object);
 zval *levenshtein_get_path(Levenshtein *levenshtein, zval *object);
 zval *levenshtein_get_blocks(Levenshtein *levenshtein, zval *object);
 zval *levenshtein_get_searches(Levenshtein *levenshtein, zval *object);
+
+
 
 #endif

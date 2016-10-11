@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#include <zend_2_to_3_fix.h>
+
 #define MIN(a, b) (((a)<(b))?(a):(b))
 #define MAX(a, b) (((a)>(b))?(a):(b))
 
@@ -51,10 +53,13 @@ public:
     Levenshtein();
 
     void setString(char *str);
+    void setString(zval *value);
 
     zval *getString();
 
     void clearPattern();
+
+    void setPattern(zval *value);
 
     void setPattern(char *pattern);
 
