@@ -662,7 +662,7 @@ PHP_METHOD (Levenshtein, __get) {
     }    
     sKey.assign((*zKey).val, (*zKey).len);
 #endif  
-    printf("__get:%s\n", sKey.c_str());
+    // printf("__get:%s\n", sKey.c_str());
     *return_value = *levenshtein__get(levenshtein, object, sKey);
     zval_copy_ctor(return_value);
 }
