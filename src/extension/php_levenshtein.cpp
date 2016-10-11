@@ -51,19 +51,33 @@ static inline levenshtein_object *levenshtein_object_from_obj(zend_object *obj)
 
 HashTable *levenshtein_object_get_properties(zval *object TSRMLS_DC)
 {    
-    HashTable *props = zend_std_get_properties(object TSRMLS_DC);
+    HashTable *props;
+    zval *val, *zProps;
+    zval *prop;
+    MAKE_STD_ZVAL(zProps);
+    array_init(zProps);
+    props =  Z_ARRVAL_P(zProps);
     levenshtein_object *obj = Z_LEVENSHTEINOBJ_P(object);
     Levenshtein *levenshtein = obj->levenshtein;
-    zval *val;
-    zval *prop;
+    // HashTable *props = zend_std_get_properties(object TSRMLS_DC);
+    // levenshtein_object *obj = Z_LEVENSHTEINOBJ_P(object);
+    // Levenshtein *levenshtein = obj->levenshtein;
+    
+    // MAKE_STD_ZVAL(val);
+    // for (zend_hash_internal_pointer_reset(props); ZEND_HASH_HAS_MORE_ELEMENTS(props) == SUCCESS; zend_hash_move_forward(props)) 
+    // {
+    //     val = ZEND_HASH_GET_CURRENT_DATA(props);
+    //     MAKE_PERSISTENT_ZVAL(prop);
+    //     zend_hash_get_current_key_zval(props, prop);
+    //     printf("Prop: %d: %s\n", Z_TYPE_P(prop), Z_TYPE_P(prop) == IS_STRING ? Z_STRVAL_P(prop) : "");
+    // }
+
     MAKE_STD_ZVAL(val);
-    for (zend_hash_internal_pointer_reset(props); ZEND_HASH_HAS_MORE_ELEMENTS(props) == SUCCESS; zend_hash_move_forward(props)) 
-    {
-        val = ZEND_HASH_GET_CURRENT_DATA(props);
-        MAKE_PERSISTENT_ZVAL(prop);
-        zend_hash_get_current_key_zval(props, prop);
-        // printf("Prop: %d: %s\n", Z_TYPE_P(prop), Z_TYPE_P(prop) == IS_ARRAY ? Z_STRVAL_P(prop) : "");
-    }
+    val = levenshtein->getString();
+    ZEND_HASH_ADD(props, "string", &val);
+    MAKE_STD_ZVAL(val);
+    val = levenshtein->getPattern();
+    ZEND_HASH_ADD(props, "pattern", &val);
     MAKE_STD_ZVAL(val);
     val = levenshtein_get_distance(levenshtein, object);
     ZEND_HASH_ADD(props, "distance", &val);
@@ -77,6 +91,14 @@ HashTable *levenshtein_object_get_properties(zval *object TSRMLS_DC)
     val = levenshtein_get_blocks(levenshtein, object);
     ZEND_HASH_ADD(props, "blocks", &val);
 
+    // MAKE_STD_ZVAL(val);
+    // for (zend_hash_internal_pointer_reset(props); ZEND_HASH_HAS_MORE_ELEMENTS(props) == SUCCESS; zend_hash_move_forward(props)) 
+    // {
+    //     val = ZEND_HASH_GET_CURRENT_DATA(props);
+    //     MAKE_PERSISTENT_ZVAL(prop);
+    //     zend_hash_get_current_key_zval(props, prop);
+    //     printf("Prop-a: %d: %s\n", Z_TYPE_P(prop), Z_TYPE_P(prop) == IS_STRING ? Z_STRVAL_P(prop) : "");
+    // }
 
     return props;
 }
@@ -241,6 +263,7 @@ ZEND_GET_MODULE(nfilin_fuzzy_match)
 /* #############################   Method implementation ########################################### */
 PHP_METHOD (Levenshtein, __construct) 
 {
+    // printf("%s\n", "__construct: +  ");
     Levenshtein *levenshtein = NULL;
     zval *object = getThis();
     zval *string, *pattern, rv;
@@ -261,19 +284,28 @@ PHP_METHOD (Levenshtein, __construct)
     obj->levenshtein = levenshtein;
 
     storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
+    if(Z_TYPE_P(storage) != IS_OBJECT){
+        object_init_ex(storage, storage_ce);
+    }
     costs = ZEND_READ_PROPERTY(levenshtein_ce, object, "costs");
+    if(Z_TYPE_P(costs) != IS_OBJECT){
+        object_init_ex(costs, costs_ce);
+    }
+    // printf("%s\n", "flush: +");
     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "pattern", val);
     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "path", val);
     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "blocks", val);
     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "searches", val);
     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "lv", val);
     FLUSH_OBJECT_PROPERTY_ARRAY(storage_ce, arr, "match_map", val);
+    // printf("%s\n", "flush: -");
 
     zend_update_property_null(storage_ce, arr, "distance", sizeof("distance") - 1 TSRMLS_DC);
     zend_update_property_double(storage_ce, arr, "cost_ins", sizeof("cost_ins") - 1, cost_ins  TSRMLS_DC);
     zend_update_property_double(storage_ce, arr, "cost_del", sizeof("cost_del") - 1, cost_del  TSRMLS_DC);
     zend_update_property_double(storage_ce, arr, "cost_rep", sizeof("cost_rep") - 1, cost_rep  TSRMLS_DC);
-    zend_update_property(levenshtein_ce, object, "storage", sizeof("storage") - 1, arr TSRMLS_DC);
+
+    zend_update_property(levenshtein_ce, object, "storage", sizeof("storage") - 1, storage TSRMLS_DC);
 
     arr = NULL;
     INIT_ZOBJECT(costs_ce, arr);
@@ -281,17 +313,24 @@ PHP_METHOD (Levenshtein, __construct)
     zend_update_property_double(costs_ce, arr, "delete", sizeof("delete") - 1, cost_del  TSRMLS_DC);
     zend_update_property_double(costs_ce, arr, "replace", sizeof("replace") - 1, cost_rep  TSRMLS_DC);
     zend_update_property(levenshtein_ce, object, "costs", sizeof("costs") - 1, arr TSRMLS_DC);
+
+    // printf("%s\n", "cost: -");
     if (Z_TYPE_P(string) == IS_STRING) {
+        // printf("%s\n", "string: +");
         zend_update_property(levenshtein_ce, object, "string", sizeof("string") - 1, string TSRMLS_DC);
+        // printf("%s\n", "string: -");
     }
+
     if (Z_TYPE_P(pattern) == IS_STRING) {
+        // printf("%s\n", "pattern: +");
         levenshtein->setPattern(Z_STRVAL_P(pattern));
         levenshtein_update_pattern(levenshtein, object);
+        // printf("%s\n", "pattern: -");
     } else if (Z_TYPE_P(pattern) == IS_ARRAY) {
         levenshtein->setPattern(Z_ARRVAL_P(pattern));
         levenshtein_update_pattern(levenshtein, object);
     }
-    
+    // printf("%s\n", "__construct: -");
 }
 
 void levenshtein_update_pattern(Levenshtein *levenshtein, zval *object) 
@@ -299,7 +338,9 @@ void levenshtein_update_pattern(Levenshtein *levenshtein, zval *object)
     zval *pattern;    
     pattern = levenshtein->getPattern();
     zend_update_property(levenshtein_ce, object, "pattern", sizeof("pattern") - 1, pattern TSRMLS_CC);
-    zend_update_property(storage_ce, ZEND_READ_PROPERTY(levenshtein_ce, object, "storage"), "pattern", sizeof("pattern") - 1, pattern TSRMLS_CC);    
+    // zend_update_property(storage_ce, ZEND_READ_PROPERTY(levenshtein_ce, object, "storage"), "pattern", sizeof("pattern") - 1, pattern TSRMLS_CC);
+    zval *storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
+    zend_update_property(storage_ce, storage, "pattern", sizeof("pattern") - 1, pattern TSRMLS_CC);
 }
 
 void levenshtein_reset_pattern(Levenshtein *levenshtein, zval *object) 
@@ -466,7 +507,6 @@ void levenshtein_flush_processed(Levenshtein *levenshtein, zval *object)
     levenshtein->flushProcessed();
 
     zval *storage = ZEND_READ_PROPERTY(levenshtein_ce, object, "storage");
-
     FLUSH_OBJECT_PROPERTY_NULL(storage_ce, storage, "path");
     FLUSH_OBJECT_PROPERTY_NULL(storage_ce, storage, "blocks");
     FLUSH_OBJECT_PROPERTY_NULL(storage_ce, storage, "searches");
@@ -478,7 +518,6 @@ void levenshtein_flush_processed(Levenshtein *levenshtein, zval *object)
     FLUSH_OBJECT_PROPERTY_NULL(levenshtein_ce, object, "blocks");
     FLUSH_OBJECT_PROPERTY_NULL(levenshtein_ce, object, "searches");
     FLUSH_OBJECT_PROPERTY_NULL(levenshtein_ce, object, "distance");
-
 }
 
 void update_storage_property(Levenshtein *levenshtein, zval *object, char *property, zval *value) 
@@ -623,6 +662,7 @@ zval *levenshtein__get(Levenshtein *levenshtein, zval *object, std::string key)
 
 void levenshtein__set(Levenshtein *levenshtein, zval *object, std::string key, zval *value)
 {
+    // printf("__set: `%s` = (%d)\n", key.c_str(), Z_TYPE_P(value));
     zval *ret;
     if (key.compare("pattern") == 0) {                  
         levenshtein->setPattern(value);
@@ -630,7 +670,8 @@ void levenshtein__set(Levenshtein *levenshtein, zval *object, std::string key, z
         levenshtein_flush_processed(levenshtein, object);
     } else if (key.compare("string") == 0){
         levenshtein->setString(value);
-        levenshtein_flush_processed(levenshtein, object);       
+        // printf("%s\n", "FLUSH");
+        levenshtein_flush_processed(levenshtein, object);  
     }
 
 }

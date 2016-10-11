@@ -18,7 +18,7 @@ extern "C" {
 #endif
 }
 
-#include <zend_2_to_3_fix.h>
+#include <zend_engine_functions.h>
 
 extern zend_error_handling levenshtein_original_error_handling;
 extern zend_module_entry levenshtein_module_entry;
