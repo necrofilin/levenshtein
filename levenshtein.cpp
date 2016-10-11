@@ -1,0 +1,1301 @@
+#include "levenshtein.h"
+#include <exception>
+
+const char DEBUG = 0;
+
+
+Levenshtein::Levenshtein(){
+    this->pattern_len = 0;
+    this->string = "";
+    this->pattern = std::vector<std::string>(0);
+    this->cost_ins = 1;
+    this->cost_del = 1;
+    this->cost_rep = 1;
+
+    this->distance = 0;
+    this->path = std::vector<std::string>(0);
+    this->lv = std::vector< std::vector<double> >(0);
+    this->match_map = std::vector< std::vector<char> >(0);
+    this->blocks = std::vector<std::string>(0);
+    this->searches = std::vector<std::string>(0);
+    this->m = 0;
+    this->n = 0;
+
+}
+
+void Levenshtein::flushProcessed(){
+//    printf("-------------------FLUSH-----------------------\n");
+    this->clearLV();
+    this->clearMap();
+    this->clearPath();
+    this->distance = 0;
+//    printf("-------------------FLUSH DONE-----------------------\n");
+}
+void Levenshtein::setPattern(HashTable *pattern){
+    this->setPattern(pattern, 1);
+}
+
+void Levenshtein::setPattern(HashTable *pattern, char flush_if_changed){
+    if(DEBUG & 8)printf("-------SET PATTERN----------\n");
+    int p_len = zend_hash_num_elements(pattern);
+//    std::vector<std::string> pat = std::vector<std::string>(p_len+1, "");
+
+    if(this->pattern.empty()){
+//        printf("New pattern\n");
+        this->pattern.resize(p_len+1, "");
+    }
+
+    int i;
+    zval **data;
+    char keep = 1;
+    char *pat_el;
+    int pat_len;
+    for ( i = 0, zend_hash_internal_pointer_reset(pattern);
+          zend_hash_get_current_data(pattern, (void **) &data) == SUCCESS;
+          ++i, zend_hash_move_forward(pattern)
+    ) {
+        pat_el = Z_STRVAL_P(*data);
+        pat_len = Z_STRLEN_P(*data);
+
+        if( !flush_if_changed || this->pattern[i].empty() || this->pattern[i].compare(pat_el) != 0){
+            //pat[i].assign(pat_el, pat_len);
+            this->pattern[i].assign(pat_el, pat_len);
+            keep = 0;
+        }
+    }
+//    efree(pat);
+//    pat.erase(pat.begin(), pat.end());
+    //printf("---------SET pattern_len = %d \n", i);
+    this->pattern_len =  i;
+    this->m = i;
+//    printf("Flush\n");
+    if(!keep && flush_if_changed)
+        this->flushProcessed();
+//    printf("sPtrn done\n");
+}
+
+
+void Levenshtein::setString(char *str){
+    if(DEBUG & 8)printf("-------setString----------\n");
+    if( this->string.empty() || this->string.compare(str) != 0){
+        this->flushProcessed();
+        this->string.assign(str);
+    }
+}
+
+zval*  Levenshtein::getString(){
+    zval *zvt;
+    MAKE_STD_ZVAL(zvt);
+    ZVAL_STRING(zvt, this->string.c_str(), 1);
+    return zvt;
+}
+
+zval* Levenshtein::getPattern(){
+
+    int i;
+
+    zval *zv, *zvt;
+    MAKE_STD_ZVAL(zv);
+    zv->type = IS_ARRAY;
+    HashTable *zv_ht;
+    ALLOC_HASHTABLE(zv_ht);
+    zend_hash_init(zv_ht, 0, NULL, NULL, 0);
+    Z_ARRVAL_P(zv) = zv_ht;
+
+    for(i = 0; i < this->pattern_len; ++i){
+       MAKE_STD_ZVAL(zvt);
+       ZVAL_STRING(zvt, this->pattern[i].c_str(), 1);
+       zend_hash_index_update(zv_ht, i, &zvt, sizeof(zval *), NULL);
+    }
+
+    return zv;
+}
+
+zval* Levenshtein::getBlocks(){
+    if(DEBUG & 8)printf("-------getBlocks----------\n");
+    if(this->blocks.empty()){
+        zval *path = this->getPath();
+    }
+//    printf("build blocks: (%d -> %d)\n", this->pattern_len, (int)this->blocks.size());
+    int i;
+    zval *zv, *zvt;
+    MAKE_STD_ZVAL(zv);
+    zv->type = IS_ARRAY;
+    HashTable *zv_ht;
+    ALLOC_HASHTABLE(zv_ht);
+    zend_hash_init(zv_ht, 0, NULL, NULL, 0);
+    Z_ARRVAL_P(zv) = zv_ht;
+
+    for(i = 0; i <= this->pattern_len; ++i){
+       MAKE_STD_ZVAL(zvt);
+       ZVAL_STRING(zvt, this->blocks[i].c_str(), 1);
+       zend_hash_index_update(zv_ht, i, &zvt, sizeof(zval *), NULL);
+    }
+
+    return zv;
+}
+
+zval* Levenshtein::getSearches(){
+    if(this->blocks.empty()){
+        zval *path = this->getPath();
+    }
+    int i;
+    zval *zv, *zvt;
+    MAKE_STD_ZVAL(zv);
+    zv->type = IS_ARRAY;
+    HashTable *zv_ht;
+    ALLOC_HASHTABLE(zv_ht);
+    zend_hash_init(zv_ht, 0, NULL, NULL, 0);
+    Z_ARRVAL_P(zv) = zv_ht;
+
+    for(i = 0; i <= this->pattern_len; ++i){
+       MAKE_STD_ZVAL(zvt);
+       ZVAL_STRING(zvt, this->searches[i].c_str(), 1);
+       zend_hash_index_update(zv_ht, i, &zvt, sizeof(zval *), NULL);
+    }
+    return zv;
+}
+
+double min(double a, double b){
+    return (((a)<(b))?(a):(b));
+}
+
+
+
+void Levenshtein::initLV(){
+//    printf(" --- INIT LV --- \n");
+    int i, j;
+    this->clearLV();
+    //this->lv = std::vector< std::vector<double> >(this->m +1, std::vector<double>(this->n + 1));
+    this->lv.resize(this->m +1, std::vector<double>(this->n + 1));
+
+
+    this->lv[0][0] = 0;
+    for(j = 1; j <= this->n; ++j) {
+        this->lv[0][j] = this->lv[0][j-1] + this->insertCost(i,j);
+    }
+    for (i = 1; i <= this->m; ++i) {
+        this->lv[i][0] = this->lv[i-1][0] + this->deleteCost(i,j);
+    }
+}
+
+void Levenshtein::initMap(){
+    int i, j;
+    this->clearMap();
+    //this->match_map = std::vector< std::vector<char> >(this->m +1, std::vector<char>(this->n + 1));
+    this->match_map.resize(this->m +1, std::vector<char>(this->n + 1));
+
+}
+
+double Levenshtein::insertCost(int j){
+    return this->insertCost(0, j);
+}
+
+
+double Levenshtein::insertCost(int i, int j){
+    //printf("ins cost (%d, %d) [%s][%c]\n", i, j, i > 0 ?this->pattern[i-1]:"NULL", j > 0 ?this->string[j-1]:'\0');
+    return this->isNoise(j) && this->isNoise(j-1) ? 0 : this->cost_ins/(this->isNoise(j) || this->isPatternNoise(i)? 2.5 : 1);
+}
+
+double Levenshtein::deleteCost(int i, int j, char allow_singlechar_noise){
+    return this->cost_del/(this->isPatternNoise(i) || ((this->isMultichar(i)||allow_singlechar_noise) && this->isNoise(j)) ? 2.5 : 1);
+}
+
+
+double Levenshtein::replaceCost(int i, int j){
+    //char n1, n2;
+    double cost = this->cost_rep /
+        ( this->isNoise(j) && this->isPatternNoise(i) ? 3 : 1)
+        ;
+//    printf("rep-cost (%d, %d): %g\n", i, j, cost);
+    return cost;
+}
+
+double Levenshtein::getDistance(){
+    if(!this->lv.empty()){
+        return this->distance;
+    }
+//    printf("---------SET M = %d \n", this->pattern_len);
+    this->m = this->pattern_len;
+//    printf("INIT MATHS\n");
+	if(this->string.empty()){
+	    this->n = 0;
+        this->initLV();
+        this->initMap();
+	    return this->m;
+	}
+//	printf("INIT MATHS D\n");
+	this->n = this->string.size();
+    this->initLV();
+    this->initMap();
+	int i, j;
+
+	for (i = 1; i <= this->m; ++i) {
+		for( j = 1; j <= this->n; ++j ) {
+			this->lv[i][j] = min(
+                           this->del(i, j),
+                           min(
+                               this->ins(i, j),
+                               this->rep(i, j)
+                           )
+                      );
+		}
+	}
+
+	this->distance = this->lv[this->m][this->n];
+//	printf("GDD \n");
+	return this->distance;
+}
+
+
+double Levenshtein::del(int i, int j){
+    return this->lv[i-1][j] + this->deleteCost(i,j);
+}
+
+double Levenshtein::ins(int i, int j){
+    return this->lv[i][j-1] + this->insertCost(i,j);
+}
+
+double Levenshtein::rep(int i, int j){
+    char mt = this->matchPattern(i, j);
+    return min(
+                this->repSimple(i, j),
+                min(
+                    this->repMultichar(i, j),
+                    this->repNonRequired(i, j)
+                )
+           );
+}
+
+double Levenshtein::repSimple(int i, int j){
+    return this->lv[i-1][j-1] + (this->match_map[i][j] ? 0 : this->replaceCost(i, j));
+}
+
+char Levenshtein::isPattern(int i){
+    return i > 0  && i <= this->m ? this->pattern[i-1].size() == 2 : 0;
+}
+
+char Levenshtein::isMultichar(int i){
+    if(!this->isPattern(i))
+        return 0;
+    switch(this->pattern[i-1][1]){
+        case 'o':
+        case 'd':
+        case 's':
+            return 1;
+            break;
+        default:
+            return 0;
+    }
+}
+
+char Levenshtein::isNonRequired(int i){
+    if(!this->isPattern(i))
+        return 0;
+    switch(this->pattern[i-1][1]){
+        case 'N':
+        case 'Z':
+        case 'L':
+            return 1;
+            break;
+        case '-':
+            return i == this->m;
+            break;
+        default:
+            return 0;
+    }
+}
+
+double Levenshtein::repMultichar(int i, int j){
+    if(this->isMultichar(i)){
+        return this->lv[i][j-1] + (this->match_map[i][j] ? 0 : this->replaceCost(i, j));
+    } else {
+        return 32767;
+    }
+}
+
+double Levenshtein::repNonRequired(int i, int j){
+    if(this->isNonRequired(i)){
+        return min( this->lv[i-1][j-1], this->lv[i-1][j] );
+    } else {
+        return 32767;
+    }
+}
+
+zval* Levenshtein::getLV(){
+    //printf("getlv\n");
+    int i, j;
+    zval *zv, *zvi, *zvj;
+    MAKE_STD_ZVAL(zv);
+    if(this->m == 0){
+        zv->type = IS_NULL;
+        return zv;
+    }
+    zv->type = IS_ARRAY;
+    HashTable *zv_ht;
+    HashTable *zvi_ht;
+    ALLOC_HASHTABLE(zv_ht);
+    zend_hash_init(zv_ht, 0, NULL, NULL, 0);
+    zv->value.ht = zv_ht;
+
+    for(i = 0; i <= this->m; ++i){
+        MAKE_STD_ZVAL(zvi);
+        ALLOC_HASHTABLE(zvi_ht);
+        zend_hash_init(zvi_ht, 0, NULL, NULL, 0);
+        for(j =0; j <= this->n; ++j){
+            MAKE_STD_ZVAL(zvj);
+            ZVAL_DOUBLE(zvj, this->lv[i][j]);
+            zend_hash_index_update(zvi_ht, j, &zvj, sizeof(zval *), NULL);
+        }
+        zvi->type = IS_ARRAY;
+        zvi->value.ht = zvi_ht;
+        zend_hash_index_update(zv_ht, i, &zvi, sizeof(zval *), NULL);
+    }
+
+    return zv;
+}
+
+zval* Levenshtein::getMap(){
+    int i, j;
+    zval *zv, *zvi, *zvj;
+    MAKE_STD_ZVAL(zv);
+    if(this->m == 0){
+        zv->type = IS_NULL;
+        return zv;
+    }
+    zv->type = IS_ARRAY;
+    HashTable *zv_ht;
+    HashTable *zvi_ht;
+    ALLOC_HASHTABLE(zv_ht);
+    zend_hash_init(zv_ht, 0, NULL, NULL, 0);
+    zv->value.ht = zv_ht;
+
+    for(i = 0; i <= this->m; ++i){
+        MAKE_STD_ZVAL(zvi);
+        ALLOC_HASHTABLE(zvi_ht);
+        zend_hash_init(zvi_ht, 0, NULL, NULL, 0);
+        for(j =0; j <= this->n; ++j){
+            MAKE_STD_ZVAL(zvj);
+            ZVAL_LONG(zvj, this->match_map[i][j]);
+            zend_hash_index_update(zvi_ht, j, &zvj, sizeof(zval *), NULL);
+        }
+        zvi->type = IS_ARRAY;
+        zvi->value.ht = zvi_ht;
+        zend_hash_index_update(zv_ht, i, &zvi, sizeof(zval *), NULL);
+    }
+
+    return zv;
+}
+
+void Levenshtein::clearPattern(){
+    this->pattern.erase(this->pattern.begin(), this->pattern.end());
+    this->pattern_len = 0;
+//    printf("---------SET M = %d \n", this->pattern_len);
+    this->m = 0;
+}
+void Levenshtein::clearLV(){
+     this->lv.erase(this->lv.begin(), this->lv.end());
+ }
+
+ void Levenshtein::clearSearches(){
+     this->searches.erase(this->searches.begin(), this->searches.end());
+ }
+
+ void Levenshtein::clearBlocks(){
+     this->blocks.erase(this->blocks.begin(), this->blocks.end());
+ }
+
+ void Levenshtein::clearMap(){
+     this->match_map.erase(this->match_map.begin(), this->match_map.end());
+ }
+
+ void Levenshtein::clearPath(){
+     this->path.erase(this->path.begin(), this->path.end());
+ }
+
+void Levenshtein::setDistance(double distance){
+    this->distance = distance;
+}
+
+void Levenshtein::setLV(zval *lv){
+//    printf(" --- SetLV --- \n");
+    if(Z_TYPE_P(lv) != IS_ARRAY){
+        this->clearLV();
+        return;
+    }
+
+    HashTable *ht = Z_ARRVAL_P(lv), *row_ht;
+    int len = zend_hash_num_elements(ht), i;
+    this->clearLV();
+    if(len < this->m || len == 0){
+        return;
+    }
+//    printf("NEW LV\n");
+    //this->lv = std::vector< std::vector<double> >(len +1);
+    this->lv.resize(len+1, std::vector<double>(0));
+    zval **row, **cell;
+    int  j, row_len;
+    for ( i = 0, zend_hash_internal_pointer_reset(ht);
+              zend_hash_get_current_data(ht, (void **) &row) == SUCCESS;
+              ++i, zend_hash_move_forward(ht)
+        ) {
+        if(Z_TYPE_P(*row) == IS_ARRAY){
+            row_ht = Z_ARRVAL_P(*row);
+            row_len = zend_hash_num_elements(row_ht);
+            this->lv[i].resize(row_len+1, 0);
+            for ( j = 0, zend_hash_internal_pointer_reset(row_ht);
+                          zend_hash_get_current_data(row_ht, (void **) &cell) == SUCCESS;
+                          ++j, zend_hash_move_forward(row_ht)
+                    ) {
+                this->lv[i][j] = Z_DVAL_P(*cell);
+            }
+        } else {
+//            printf("slv Flush\n");
+            return this->flushProcessed();
+        }
+    }
+}
+void Levenshtein::setMap(zval *map){
+//    printf("setMapV\n");
+    if(Z_TYPE_P(map) != IS_ARRAY){
+        this->clearMap();
+        return;
+    }
+
+    HashTable *ht = Z_ARRVAL_P(map), *row_ht;
+    int len = zend_hash_num_elements(ht), i;
+    this->clearMap();
+    if(len < this->m || len == 0){
+        return;
+    }
+    //this->match_map = std::vector< std::vector<char> >(len+1, std::vector<char>(this->n + 1));
+    this->match_map.resize(len+1, std::vector<char>(this->n + 1));
+    zval **row, **cell;
+    int  j, row_len;
+    for ( i = 0, zend_hash_internal_pointer_reset(ht);
+              zend_hash_get_current_data(ht, (void **) &row) == SUCCESS;
+              ++i, zend_hash_move_forward(ht)
+        ) {
+        if(Z_TYPE_P(*row) == IS_ARRAY){
+            row_ht = Z_ARRVAL_P(*row);
+            row_len = zend_hash_num_elements(row_ht);
+            this->match_map[i].resize(row_len +1, 0);
+            for ( j = 0, zend_hash_internal_pointer_reset(row_ht);
+                          zend_hash_get_current_data(row_ht, (void **) &cell) == SUCCESS;
+                          ++j, zend_hash_move_forward(row_ht)
+                    ) {
+                this->match_map[i][j] = (char) Z_LVAL_P(*cell);
+            }
+        } else {
+//            printf("slv m\n");
+            return this->flushProcessed();
+        }
+    }
+}
+
+void Levenshtein::pushPath(int i, char pre){
+    this->path[i].insert(0, 1, pre);
+}
+
+void Levenshtein::shiftPath(int i){
+    int len = this->path[i].size();
+    this->path[i].erase(0, 1);
+}
+
+char equals(double a, double b){
+    return fabs(a - b) < 1e-6;
+}
+
+double Levenshtein::prev(int i, int j){
+    double prev, delta, cval, rep_val, del_rep_val, ins_val, rc;
+    prev = 0xFFFF;
+    cval = this->lv[i][j];
+    if ( i > 0 && j > 0 ) {
+        rep_val = this->lv[i-1][j-1];
+        delta =  cval - rep_val;
+        rc = this->replaceCost(i, j) ;
+        if(DEBUG & 4)printf("a-rep: %g (%g) = (%g - %g) / %d %d %g\n", rc, delta, rep_val, cval, (delta == 0) , (delta == rc), rc - delta);
+        if ( equals(delta, 0) || equals(delta, rc) ) {
+//                        printf("accept rep\n");
+            prev = MIN(prev, rep_val);
+        }
+    }
+    if ( j > 0 ) {
+        del_rep_val = this->lv[i][j-1];
+        delta =  cval - del_rep_val;
+        if(DEBUG & 4)printf("a-del: (%g) = (%g - %g) / %g\n", delta, del_rep_val, cval, this->deleteCost(i,j));
+        if ( equals(delta, 0) || equals(delta, this->deleteCost(i,j)) || equals(delta, this->deleteCost(i,j, 1))) {
+            prev = MIN(prev, del_rep_val);
+        }
+    }
+    if( i > 0 ){
+        ins_val = this->lv[i-1][j];
+        delta =  cval - ins_val;
+        double ic = this->insertCost(i,j);
+        if(DEBUG & 4)printf("a-ins: (%g) = (%g - %g) (%g)\n", delta, ins_val, cval, ic);
+        if((delta == 0 && this->isNonRequired(i)) || (this->isMultichar(i) && equals(delta, this->replaceCost(i, j))) || equals(delta, ic)){
+            prev = MIN(prev, ins_val);
+        }
+    }
+    return prev;
+}
+
+zval* Levenshtein::getPath(){
+    if(DEBUG & 8)printf("-------getPath----------\n");
+    int i = this->m;
+    int j = this->n;
+    if(this->blocks.empty()){
+        this->clearBlocks();
+        this->clearSearches();
+//        printf("(%d -> %d)\n", this->pattern_len, this->m);
+//        this->blocks = std::vector<std::string>(this->m +1, "");
+        this->blocks.resize(this->m +1, "");
+//        this->searches = std::vector<std::string>(this->m +1, "");
+        this->searches.resize(this->m +1, "");
+    }
+    if (this->path.empty()) {
+        this->path.resize(this->m +1, "");
+//        this->path = std::vector<std::string>(this->m +1, "");
+        // Pattern is not empty
+        if ( i > 0 ){
+            double prev, delta, cval, rep_val, del_rep_val, ins_val, rc;
+            char match, imc;
+            int skips = 0;
+
+            int path_stor[this->n][2];
+
+            int stor_i = 0xFFFF, stor_j = 0xFFFF, stor_pl=0, k, ti, rp;
+
+            long debug_pointer = 0;
+
+            while ( i >= 0 && j >= 0 ) {
+//                printf("(%d:%d)\n",i,j);
+                ++debug_pointer;
+                if(debug_pointer > 1000)
+                    break;
+                if(this->isNonRequired(i)){
+                    if(stor_i == 0xFFFF){
+//                        printf("store (%d:%d)\n", i, j);
+                        stor_i = i;
+                        stor_j = j;
+                        stor_pl = this->path[i].size(); //strlen(this->path[i]);
+                    }
+                    path_stor[j][0] = i;
+                    path_stor[j][1] =  this->path[i].size();//strlen(this->path[i]);
+
+                } else if (!this->isNonRequired(i) && stor_i!=0xFFFF ){
+                    if(!this->match_map[i][j]){
+//                        printf("revoke (%d:%d) (%d:%d)\n", i, j, stor_i, stor_j);
+                        for(k = j+1; k <= stor_j && stor_j != 0xFFFF; ++k){
+    //                        printf("k (%d:%d)  j %d %d =%d\n", i, k, j, stor_j, this->match_map[i][k]);
+                            if(this->match_map[i][k]){
+                                //printf("match (%d:%d)\n", i, k);
+                                prev = this->prev(i, k);
+                                //printf("p(%g) -1-1(%g) 0-1(%g) mc(%d)\n",prev, this->lv[i-1][k-1], this->lv[i][k-1], this->isMultichar(i));
+                                if(equals(prev, this->lv[i-1][k-1]) || (this->isMultichar(i) && equals(prev, this->lv[i][k-1]))){
+                                    rp = path_stor[k][0];
+                                    for(ti = i+1; ti < rp; ti++){
+                                        //this->path[ti][0] = '\0';
+    //                                    printf("erase %d\n", ti);
+                                        this->path[ti].clear();
+                                    }
+                                    this->path[rp].erase(0, this->path[rp].size() - path_stor[k][1]);
+                                    /*while(this->path[rp].size() > path_stor[k][1]){
+                                        this->path[rp] = this->path[rp].substr(1, this->path[rp].size()-1);
+                                    }*/
+                                    j = k;
+//                                    printf("apply: (%d:%d) -> (%d:%d) (%d)\n", i, k, stor_i, stor_j, rp);
+                                    stor_j = 0xFFFF;
+                                }
+                            }
+                        }
+                    }
+                    stor_i = 0xFFFF;
+                    stor_j = 0xFFFF;
+                }
+//                printf("ni(%d, %d)\n", i, j);
+                prev = this->prev(i,j);
+                cval = this->lv[i][j];
+                if ( i > 0 && j > 0 ) {
+                    rep_val = this->lv[i-1][j-1];
+                }
+                if ( j > 0 ) {
+                    del_rep_val = this->lv[i][j-1];
+                }
+                if( i > 0 ){
+                    ins_val = this->lv[i-1][j];
+                }
+//                printf("(%d,%d) (%g, %g, %g) = (%g) ; c(%g)\n", i, j, ins_val, rep_val, del_rep_val, prev, this->lv[i][j]);
+                match = this->match_map[i][j];
+                imc = this->isMultichar(i);
+//                printf("sc\n");
+                if( match && imc && equals(this->lv[i][j-1], prev)){
+                    skips = 0;
+                    if(DEBUG)printf("m - ml(%d, %d)\n", i, j);
+                    this->applyPattern(i, j, "M");
+                    --j;
+                } else if(match && equals(this->lv[i-1][j-1], prev)) {
+                    skips = 0;
+                    if(DEBUG)printf("m - sl(%d, %d)\n", i, j);
+                    this->applyPattern(i, j, "M");
+                    --j;
+                    --i;
+                } else if(
+                            i > 0 && j > 1 &&
+                            this->isNonRequired(i) &&
+                            //this->isNoise(this->string[j-2]) && this->isNoise(this->string[j-1]) &&
+                            equals(this->lv[i-1][j-1], prev)
+                         ){
+                    ++skips;
+                    if(DEBUG)printf("d - s(%d, %d)\n", i, j);
+//                    this->path[i].insert(0, "D");
+                    this->applyPattern(i, j, "D");
+                    --j;
+                    --i;
+                } else if (i > 0 && this->match_map[i-1][j] && this->isPatternNoise(i) && equals(ins_val, prev)){
+                    if(DEBUG)printf("i - n(%d, %d)\n", i, j);
+                    this->applyPattern(i, j, "I");
+                    --i;
+                } else if ( j > 0 && imc && equals(del_rep_val, prev) ) {
+                    skips = 0;
+                    if(DEBUG)printf("r - ml(%d, %d)\n", i, j);
+//                    this->path[i].insert(0, "D");
+                    this->applyPattern(i, j, "D");
+                    --j;
+                } else if ( j > 0 && i > 0 && equals(rep_val, prev) ) {
+                    skips = 0;
+                    if(DEBUG)printf("r - sl(%d, %d) (%g) (%d, %g)\n", i, j, prev, imc, del_rep_val);
+                    this->applyPattern(i, j, "R");
+                    --j;
+                    --i;
+                } else if(i > 0 && this->isNonRequired(i) && equals(ins_val, prev)){
+                    ++skips;
+                    if(DEBUG)printf("s(%d, %d)\n", i, j);
+                    --i;
+                } else if ( i > 0 && equals(ins_val, prev) ) {
+                    skips = 0;
+                    if(DEBUG)printf("i - c(%d, %d) (%g) (%g)\n", i, j,prev, ins_val);
+                    this->applyPattern(i, j, "I");
+                    --i;
+                } else if ( j > 0 && equals(del_rep_val, prev) ) {
+                    skips = 0;
+                    if(DEBUG)printf("d - c(%d, %d)\n", i, j);
+                    //this->path[i].insert(0, "D");
+                    this->applyPattern(i, j, "D");
+                    --j;
+                } else if( j > 0 ) {
+                    skips = 0;
+                    if(DEBUG)printf("d - ic(%d, %d) (%g)\n", i, j, prev);
+//                    this->path[i].insert(0, "D");
+                    this->applyPattern(i, j, "D");
+                    --j;
+                } else if( i > 0 ) {
+                    skips = 0;
+                    if(DEBUG)printf("i - ic(%d, %d)\n", i, j);
+                    this->applyPattern(i, -1, "I");
+                    --i;
+                    //initStr(&this->path[i]);
+                } else{
+                    //printf("(%d, %d)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n", i, j);
+                    break;
+                }
+            }
+        } else {
+            while ( j > 0 ) {
+                //printf("724: D (%d, %d)\n", i, j);
+                //this->pushPath(i, 'D');
+                this->path[i].insert(0, "D");
+                --j;
+            }
+        }
+        /*for(i = 0; i <= this->m; ++i){
+            this->path[i] = (char *) emalloc( (tpath[i].size()+1) *sizeof(char));
+            strncpy(this->path[i], tpath[i].c_str(), tpath[i].size());
+            this->path[i][tpath[i].size()] = '\0';
+        }*/
+        if(DEBUG){
+            for(i = 0; i < this->m+1;++i){
+//                printf("b[%d]: `%s`\n",i, this->blocks[i].c_str());
+            }
+        }
+    }
+//    printf("don\n");
+    HashTable *ht;
+    zval *ht_val;
+    ALLOC_HASHTABLE(ht);
+    zend_hash_init(ht, 0, NULL, NULL, 0);
+    for(i = 0; i <= this->m; ++i){
+        //printf("l: %d\n", i);
+        MAKE_STD_ZVAL(ht_val);
+        //printf("l: %s\n", this->path[i]);
+        ZVAL_STRING(ht_val, this->path[i].empty() ? "" : this->path[i].c_str(), 1);
+        zend_hash_index_update(ht, i, &ht_val, sizeof(zval *), NULL);
+    }
+    zval *retval;
+    MAKE_STD_ZVAL(retval);
+    Z_TYPE_P(retval) = IS_ARRAY;
+    Z_ARRVAL_P(retval) = ht;
+    return retval;
+}
+
+void Levenshtein::setPath(zval* path){
+//    printf("setPathV\n");
+    if(Z_TYPE_P(path) != IS_ARRAY || this->lv.empty()){
+        this->clearPath();
+        return;
+    }
+    HashTable *ht = Z_ARRVAL_P(path);;
+    int len = zend_hash_num_elements(ht), i;
+    this->clearPath();
+    if(len < this->m || len == 0){
+        return;
+    }
+    this->path.resize(len+1, "");
+    zval **data;
+    char *path_el;
+    int path_len;
+    for ( i = 0, zend_hash_internal_pointer_reset(ht);
+              zend_hash_get_current_data(ht, (void **) &data) == SUCCESS;
+              ++i, zend_hash_move_forward(ht)
+        ) {
+        path_el = Z_STRVAL_P(*data);
+        path_len = Z_STRLEN_P(*data);
+        this->path[i].assign(path_el, path_len);
+
+    }
+}
+
+void Levenshtein::setBlocks(zval* blocks){
+//    printf("setBlocks\n");
+    if(Z_TYPE_P(blocks) != IS_ARRAY || this->lv.empty()){
+        this->clearBlocks();
+        this->clearSearches();
+        return;
+    }
+    HashTable *ht = Z_ARRVAL_P(blocks);;
+    int len = zend_hash_num_elements(ht), i;
+    this->clearBlocks();
+    if(len < this->m || len == 0){
+        return;
+    }
+    this->blocks.resize(len+1, "");
+    zval **data;
+    char *blocks_el;
+    int blocks_len;
+    for ( i = 0, zend_hash_internal_pointer_reset(ht);
+              zend_hash_get_current_data(ht, (void **) &data) == SUCCESS;
+              ++i, zend_hash_move_forward(ht)
+        ) {
+        blocks_el = Z_STRVAL_P(*data);
+        blocks_len = Z_STRLEN_P(*data);
+//        printf("[%d]: %s (%d)\n", i, blocks_el, blocks_len);
+        this->blocks[i].assign(blocks_el, blocks_len);
+
+    }
+}
+
+void Levenshtein::setSearches(zval* searches){
+//    printf("setBlocks\n");
+    if(Z_TYPE_P(searches) != IS_ARRAY || this->lv.empty()){
+        this->clearBlocks();
+        this->clearSearches();
+        return;
+    }
+    HashTable *ht = Z_ARRVAL_P(searches);;
+    int len = zend_hash_num_elements(ht), i;
+    this->clearSearches();
+    if(len < this->m || len == 0){
+        this->clearBlocks();
+        return;
+    }
+    this->searches.resize(len+1, "");
+    zval **data;
+    char *searches_el;
+    int searches_len;
+    for ( i = 0, zend_hash_internal_pointer_reset(ht);
+              zend_hash_get_current_data(ht, (void **) &data) == SUCCESS;
+              ++i, zend_hash_move_forward(ht)
+        ) {
+        searches_el = Z_STRVAL_P(*data);
+        searches_len = Z_STRLEN_P(*data);
+        this->searches[i].assign(searches_el, searches_len);
+
+    }
+}
+
+
+void Levenshtein::setCostIns(double cost){
+    //printf("set cost ins: %g\n", cost);
+    this->cost_ins = cost;
+}
+void Levenshtein::setCostDel(double cost){
+    //printf("set cost del: %g\n", cost);
+    this->cost_del = cost;
+}
+void Levenshtein::setCostRep(double cost){
+    //printf("set cost rep: %g\n", cost);
+    this->cost_rep = cost;
+}
+
+double Levenshtein::getCostIns(){
+    return this->cost_ins;
+}
+double Levenshtein::getCostDel(){
+    return this->cost_del;
+}
+double Levenshtein::getCostRep(){
+    return this->cost_rep;
+}
+
+
+
+char Levenshtein::isPatternNoise(int i){
+    if(i < 1 || i > this->m)
+        return 0;
+    if(this->isPattern(i)){
+        return this->isNoise(this->pattern[i-1][1]);
+    } else {
+        return this->isNoise(this->pattern[i-1][0]);
+    }
+}
+
+char Levenshtein::isNoise(int j){
+    if(j < 1 || j > this->n)
+        return 0;
+    return this->isNoise(this->string[j-1]);
+}
+
+char Levenshtein::isNoise(char *str) {
+    if(strlen(str) > 1)
+        return 0;
+    return this->isNoise(str[0]);
+}
+
+char Levenshtein::isNoise(char c) {
+    switch(c){
+        case ' ':
+            /*if(j > 2 && !this->isNoise(j-1))
+                break;*/
+        case '?':
+        case '.':
+        case ',':
+        case ':':
+        case '-':
+        case '_':
+        case ';':
+        case '\'':
+        case '"':
+        case '`':
+        case '<':
+        case '>':
+        case '*':
+        case '(':
+        case ')':
+        case '|':
+        case 'I':
+        case '{':
+        case '}':
+        case '%':
+        case '#':
+        case '~':
+        case 'x':
+//            printf("is Noise: %c\n", c);
+            return 1;
+            break;
+        default:
+//            printf("is not Noise: %c\n", c);
+            return 0;
+    }
+}
+
+char isDigit(std::string str){
+  return str.size() == 1 && isDigit(str[0]);
+}
+
+char isDigit(char c){
+    switch(c){
+        case 'o':
+        case 'Q':
+        case 'O':
+        case 'B':
+        case 'D':
+        case 'I':
+        case 'c':
+        case 'C':
+        case '|':
+        case 'g':
+            return 1;
+        default:
+            return isdigit(c) != 0;
+    }
+}
+
+char isAlpha(std::string str){
+  return str.size() == 1 && isAlpha(str[0]);
+}
+
+char isAlpha(char c){
+    switch(c){
+        case '0':
+        case '8':
+        case '4':
+        case '5':
+        case '|':
+            return 1;
+        default:
+            return isalpha(c) != 0;
+    }
+}
+
+char isAlphaDigit(char c){
+    switch(c){
+        case '|':
+            return 1;
+        default:
+            return isdigit(c) != 0 || isalpha(c) != 0;
+    }
+}
+
+
+void Levenshtein::setPattern(char *pattern){
+//    printf("sptrn Flush\n");
+    this->flushProcessed();
+    int p_len = strlen(pattern);
+//    this->pattern = new char*[p_len+1];
+    this->clearPattern();
+    this->pattern.resize(p_len+1, "");
+    long i = 0;
+    long j = 0;
+    char el[3];
+    while(i < p_len){
+        if(pattern[i] == '%') {
+            switch(pattern[i+1]) {
+                case 'o':/* one or more digits */
+                case 'O':/* exactly one digit, filled with 0 if not present */
+                case 'd':/* one or more digits, without leading zeroes */
+                case 's':/* one or more of any symbols */
+                case 'D':/* exactly one digit, empty if not present */
+                case 'S':/* exactly one symbol */
+                case 'N':/* one digit or nothing */
+                case 'Z':/* one symbol or nothing */
+                case 'L':/* one english letter or nothing */
+                case 'E':/* exactly one english letter */
+                case 'A':/* number or english letter */
+                case '-':/* dash or space */
+                    this->pattern[j].assign(1, '%');
+                    this->pattern[j].append(1, pattern[++i]);
+                    ++j;
+                    break;
+                case '%':
+                    ++i;
+                default:
+                    this->pattern[j] = "%";
+                    /*this->pattern[j].clear();
+                    this->pattern[j].append(1, '%');*/
+                    ++j;
+            }
+        } else {
+            this->pattern[j].assign(1, pattern[i]);
+            ++j;
+        }
+        ++i;
+    }
+//    printf("---------SET pattern_len = %d \n", j);
+    this->pattern_len =  j;
+    this->m = j;
+}
+void Levenshtein::applyPattern( int i, int j, std::string action)
+{
+    std::string tstr = " ", ostr = "";
+    char c = j > 0 && action.compare("I") != 0 ? this->string[j-1] : '\0';
+    if(action.compare("D") == 0){
+        if(c != '\0') this->searches[i].insert(0, 1, c);
+        this->path[i].insert(0, action);
+    } else if(this->isPattern(i)){
+        switch(this->pattern[i-1][1]){
+            case 'o':/* one or more digits */
+                tstr = "0";
+                ostr.assign(1, toDigit(c));
+                if(!isDigit(ostr)){ostr = tstr;}
+                if(ostr.compare("0") == 0){
+                    if(this->blocks[i].size() == 0/* || this->blocks[i][0] != '0'*/){
+                        this->blocks[i].insert(0, "0");
+                        if(c != '\0') this->searches[i].insert(0, 1, c);
+                        this->path[i].insert(0, action);
+                    }
+                } else {
+                    this->blocks[i].insert(0, ostr);
+                    if(c != '\0') this->searches[i].insert(0, 1, c);
+                    this->path[i].insert(0, action);
+                }
+                break;
+            case 'O':/* exactly one digit, filled with 0 if not present */
+                tstr = "0";
+                ostr.assign(1, toDigit(c));
+                if(!isDigit(ostr)){ostr = tstr;}
+                this->blocks[i].insert(0, ostr);
+                if(c != '\0') this->searches[i].insert(0, 1, c);
+                this->path[i].insert(0, action);
+                break;
+            case 'N':/* one digit or nothing */
+            case 'd':/* one or more digits, without leading zeroes */
+            case 'D':/* exactly one digit, empty if not present */
+                tstr = "";
+                ostr.assign(1, toDigit(c));
+                if(!isDigit(ostr)){ostr = tstr;}
+                if(ostr.size()>0){
+                    this->blocks[i].insert(0, ostr);
+                    if(c != '\0') this->searches[i].insert(0, 1, c);
+                    this->path[i].insert(0, action);
+                }
+                break;
+            case 'L':/* one english letter or nothing */
+                tstr = "";
+            case 'E':/* exactly one english letter */
+                ostr.assign(1, toAlpha(c));
+                if(!isAlpha(ostr)){ostr = tstr;}
+                if(ostr.size()>0){
+                    this->blocks[i].insert(0, ostr);
+                    if(c != '\0') this->searches[i].insert(0, 1, c);
+                    this->path[i].insert(0, action);
+                }
+                break;
+            case '-':/* dash or space */
+                ostr.assign(1, toDash(c));
+                this->blocks[i].insert(0, ostr);
+                if(c != '\0') this->searches[i].insert(0, 1, c);
+                this->path[i].insert(0, action);
+                break;
+            case 'A':/* number or english letter */
+            case 'Z':/* one symbol or nothing */
+                tstr = "";
+            case 's':/* one or more of any symbols */
+            case 'S':/* exactly one symbol */
+                if(c == '\0'){
+                    ostr = tstr;
+                } else {
+                    ostr.assign(1, c);
+                }
+                if(ostr.size()>0){
+                    this->blocks[i].insert(0, ostr);
+                    if(c != '\0') this->searches[i].insert(0, 1, c);
+                    this->path[i].insert(0, action);
+                }
+                break;
+            default:
+                ostr.assign(1, this->pattern[i-1][1]);
+                this->blocks[i].insert(0, ostr);
+                if(c != '\0') this->searches[i].insert(0, 1, c);
+                this->path[i].insert(0, action);
+        }
+    } else if(i > 0){
+//        printf("rc: `%c` %d\n",c, j);
+        ostr = this->pattern[i-1];
+        this->blocks[i].insert(0, ostr);
+        if(c != '\0') this->searches[i].insert(0, 1, c);
+        this->path[i].insert(0, action);
+    }
+//    printf("ap[%d]: `%s` `%s` `%s`\n", i, this->blocks[i].c_str(), this->searches[i].c_str(), this->path[i].c_str());
+}
+
+char normalizeChar(char c){
+    switch(c){
+        case 's':
+        case '5':
+        case 'S':
+            return 's';
+            break;
+        case '0':
+        case 'o':
+        case 'c':
+        case 'C':
+        case 'O':
+            return 'o';
+        case '7':
+        case 'Z':
+            return '7';
+            break;
+        default:
+            return tolower(c);
+    }
+}
+
+char normalizedMatchChar(char pc, char sc){
+    switch(pc){
+        case 's':
+        case 'S':
+            return toDigit(sc) == '5' || tolower(sc) == 's';
+            break;
+        case 'O':
+        case 'o':
+            return toDigit(sc) == '0' || tolower(sc) == 'o';
+            break;
+        case 'D':
+            return sc == '0' || tolower(sc) == 'd';
+            break;
+        case 'c':
+        case 'C':
+            return sc == '0' || tolower(sc) == 'c';
+            break;
+        case 'B':
+            return toDigit(sc) == '8' || tolower(sc) == 'b';
+            break;
+        case 'I':
+        case 'i':
+            return toDigit(sc) == '1' || tolower(sc) == 'i';
+            break;
+        case '0':
+            return toDigit(sc) == '0';
+            break;
+        case '1':
+            return toDigit(sc) == '1';
+            break;
+        case '4':
+            return toDigit(sc) == '4';
+            break;
+        case '5':
+            return toDigit(sc) == '5';
+            break;
+        case '8':
+            return toDigit(sc) == '8';
+            break;
+        case '7':
+            return toDigit(sc) == '7';
+            break;
+        case 'Z':
+            return tolower(toAlpha(sc)) == 'z';
+            break;
+        default:
+            return tolower(sc) == tolower(pc);
+    }
+}
+
+char toDigit(char c){
+    switch(c){
+        case 'B':
+            return '8';
+            break;
+        case 's':
+        case 'S':
+            return '5';
+            break;
+        case 'D':
+        case 'o':
+        case 'O':
+        case 'C':
+        case 'c':
+        case 'g':
+        case 'Q':
+            return '0';
+            break;
+        case '|':
+        case 'I':
+        case 'i':
+            return 1;
+            break;
+        case 'A':
+            return '4';
+            break;
+        case 'Z':
+            return '7';
+            break;
+        default:
+            return c;
+    }
+}
+
+char toAlpha(char c){
+    switch(c){
+        case '0':
+            return 'O';
+            break;
+        case '1':
+            return 'I';
+            break;
+        case '4':
+            return 'A';
+            break;
+        case '5':
+            return 'S';
+            break;
+        case '8':
+            return 'B';
+            break;
+        case '7':
+            return 'Z';date
+            break;
+        default:
+            return c;
+    }
+}
+
+char toDash(char c){
+    switch(c){
+        case '~':
+        case '*':
+        case '_':
+        case '-':
+            return '-';
+            break;
+        default:
+            return ' ';
+    }
+}
+
+char isDecimalSign(char c){
+    switch(c){
+        case ' ':
+
+        case '~':
+        case '*':
+        case '_':
+        case '-':
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+
+char Levenshtein::matchPattern(int i, int j){
+    //char *pattern = this->pattern[i-1];
+    char s = this->string[j-1];
+    //if(strlen(pattern) == 2) {
+    if(this->isPattern(i)) {
+        switch(this->pattern[i-1][1]){
+            case 'O':
+            case 'o':
+            case 'D':
+            case 'd':
+            case 'N':
+                this->match_map[i][j] = isDigit(s);
+                break;
+            case 'E':
+            case 'L':
+                this->match_map[i][j] = isAlpha(s);
+                break;
+            case 'A':
+                this->match_map[i][j] = isAlphaDigit(s);
+                break;
+            case '-':
+                this->match_map[i][j] = isDecimalSign(s);
+//                printf("mp: (%d,%d) `%c` => %d\n",i,j, s, this->match_map[i][j]);
+                break;
+            case 'S':
+            case 's':
+            case 'Z':
+                this->match_map[i][j] = 1;
+                break;
+            default:
+                this->match_map[i][j] = normalizedMatchChar(this->pattern[i-1][1], s);
+        }
+    } else {
+        this->match_map[i][j] = normalizedMatchChar(this->pattern[i-1][0], s);
+        //printf(" %c == %c [%c]\n",)
+    }
+    return this->match_map[i][j];
+}
+
+void echo(char* str){
+//  printf("%s",str);
+}
