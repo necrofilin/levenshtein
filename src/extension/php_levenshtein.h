@@ -18,7 +18,7 @@ extern "C" {
 #endif
 }
 
-#include <zend_engine_functions.h>
+#include <nf_functions.h>
 
 extern zend_error_handling levenshtein_original_error_handling;
 extern zend_module_entry levenshtein_module_entry;
@@ -47,44 +47,25 @@ extern void Z2DOUBLE(zval *val);
 #include "levenshtein.h"
 #include "php_levenshtein.h"
 
-#if ZEND_MODULE_API_NO < 20151012
-struct levenshtein_object {
-    zend_object std;
-    Levenshtein *levenshtein;
-};
 
-struct storage_object {
-    zend_object std;
-    Storage *storage;
-};
+DECLARE_OBJECT_STRUCT(levenshtein, Levenshtein);
+DECLARE_OBJECT_STRUCT(storage, Storage);
+DECLARE_OBJECT_STRUCT(costs, Costs);
 
-struct costs_object {
-    zend_object std;
-    Costs *costs;
-};
 
-#define Z_LEVENSHTEINOBJ_P(zv) (levenshtein_object *) zend_object_store_get_object(zv TSRMLS_CC)
+#ifdef ZEND_ENGINE_2
 
-#else
+#define Z_LEVENSHTEINOBJ_P(zv) \
+    (levenshtein_object *) zend_object_store_get_object(zv TSRMLS_CC)
 
-struct levenshtein_object {
-    Levenshtein *levenshtein;
-    zend_object std;
-};
+#endif
 
-struct storage_object {
-    Storage *storage;
-    zend_object std;
-};
-
-struct costs_object {
-    Costs *costs;
-    zend_object std;
-};
+#ifdef ZEND_ENGINE_3
 
 static inline levenshtein_object *levenshtein_object_from_obj(zend_object *obj);
 
-#define Z_LEVENSHTEINOBJ_P(zv) levenshtein_object_from_obj(Z_OBJ_P((zv)))
+#define Z_LEVENSHTEINOBJ_P(zv) \
+    levenshtein_object_from_obj(Z_OBJ_P((zv)))
 
 
 #endif
