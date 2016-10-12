@@ -14,7 +14,7 @@ export NO_INTERACTION=true
 
 $PHPIZE --clean\
     && $PHPIZE \
-    && ./configure --with-php-config="$PHP_CONFIG"\
+    && ./configure --with-php-config="$PHP_CONFIG" \
     && make\
     && make test \
     && sudo make install \

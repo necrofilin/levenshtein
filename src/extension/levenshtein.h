@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include <zend_engine_functions.h>
+#include <nf_functions.h>
 
 #define MIN(a, b) (((a)<(b))?(a):(b))
 #define MAX(a, b) (((a)>(b))?(a):(b))
@@ -45,9 +45,6 @@ extern void clearPointer(void **ptr, char type_l1, char type_l2, int len_l1);
 
 extern void echo(char *str);
 
-#define FLUSH_VECTOR(vect) \
-    (vect).erase((vect).begin(),(vect).end())
-
 class Levenshtein {
 public:
     Levenshtein();
@@ -60,11 +57,8 @@ public:
     void clearPattern();
 
     void setPattern(zval *value);
-
     void setPattern(char *pattern);
-
     void setPattern(HashTable *pattern);
-
     void setPattern(HashTable *pattern, char flush_if_changed);
 
     zval *getPattern();
@@ -176,7 +170,6 @@ private:
     void shiftPath(int i);
 
     double prev(int i, int j);
-
 
     void applyPattern(int i, int j, std::string action);
 
